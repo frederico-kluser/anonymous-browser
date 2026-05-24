@@ -178,6 +178,49 @@ if [[ "$USE_TOR_INTERNAL" -eq 1 ]]; then
     "$SCRIPT_DIR/new-tor-circuit.sh" || true
 fi
 
+# -------- resolve IP de saída para geoip (não delega ao Camoufox) --------
+# Camoufox com geoip=True probe api.ipify.org / ipinfo.io / checkip.amazonaws.com
+# — TODOS bloqueados pelo Cloudflare quando origem é exit Tor (HTTP 403/vazio),
+# o que faz camoufox/ip.py:119 levantar InvalidIP e o browser nunca abrir.
+# Resolvemos o IP aqui, num endpoint Tor-friendly (check.torproject.org), e
+# passamos o IP em string pro Camoufox — que aceita geoip=<ip> e pula o probe.
+GEOIP_VALUE=""
+if [[ -n "$PROXY_URL" ]]; then
+    CURL_PROXY_ARGS=()
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && CURL_PROXY_ARGS+=("$line")
+    done < <(ghost_curl_proxy_args "$PROXY_URL" || true)
+
+    # Ordem: Tor-API primeiro (purpose-built, nunca bloqueia), depois fallbacks
+    # caso o proxy não seja Tor.
+    for ep in \
+        "https://check.torproject.org/api/ip" \
+        "https://icanhazip.com" \
+        "https://ifconfig.co/ip" \
+        "https://ipecho.net/plain"
+    do
+        RESP="$(curl -s --max-time 8 \
+            ${CURL_PROXY_ARGS[@]+"${CURL_PROXY_ARGS[@]}"} \
+            "$ep" 2>/dev/null || true)"
+        [[ -z "$RESP" ]] && continue
+        case "$ep" in
+            *torproject.org*) IP="$(printf '%s' "$RESP" | jq -r '.IP // empty' 2>/dev/null || true)" ;;
+            *)                IP="$(printf '%s' "$RESP" | tr -d '[:space:]')" ;;
+        esac
+        if [[ "$IP" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ || "$IP" == *:* ]]; then
+            GEOIP_VALUE="$IP"
+            break
+        fi
+    done
+
+    if [[ -n "$GEOIP_VALUE" ]]; then
+        echo "[ghost] IP geoip: $GEOIP_VALUE ($PROXY_LABEL)"
+    else
+        echo "[ghost] geoip : não consegui resolver IP via proxy — abrindo sem geoip"
+        echo "         (timezone/locale podem ficar inconsistentes com o IP de saída)"
+    fi
+fi
+
 # -------- perfil descartável OU persistente --------
 if [[ "$PERSISTENT" -eq 1 ]]; then
     TMP="$PROFILE_DIR"
@@ -225,10 +268,11 @@ from browserforge.fingerprints import Screen
 for s in (signal.SIGHUP, signal.SIGTERM):
     signal.signal(s, lambda *_: sys.exit(0))
 
-URL       = "$URL"
-OS_ARG    = "$OS_RAND"
-UDD       = "$TMP"
-PROXY_URL = "$PROXY_URL"
+URL        = "$URL"
+OS_ARG     = "$OS_RAND"
+UDD        = "$TMP"
+PROXY_URL  = "$PROXY_URL"
+GEOIP_VAL  = "$GEOIP_VALUE"
 
 screens = {
     "windows": Screen(max_width=1920, max_height=1080),
@@ -237,9 +281,18 @@ screens = {
 }
 
 proxy_arg = {"server": PROXY_URL} if PROXY_URL else None
-# Sem proxy + geoip=True faz Camoufox bater em api.ipify.org/etc com o IP real
-# pra casar locale/timezone. Privacidade: desabilita geoip quando proxy=None.
-use_geoip = proxy_arg is not None
+# geoip:
+#   - sem proxy → False (privacidade: não vaza IP real pra api de geoip)
+#   - com proxy + IP resolvido pelo bash → string explícita (Camoufox pula o
+#     probe interno em api.ipify.org/ipinfo.io etc., que são Cloudflare-blocked
+#     pra exits Tor e fariam o launch quebrar com InvalidIP)
+#   - com proxy mas sem IP (todos endpoints caíram) → False com aviso
+if proxy_arg is None:
+    geoip_kw = False
+elif GEOIP_VAL:
+    geoip_kw = GEOIP_VAL
+else:
+    geoip_kw = False
 
 print(f"[ghost] abrindo Camoufox como '{OS_ARG}' -> {URL}")
 
@@ -247,7 +300,7 @@ with Camoufox(
     os=OS_ARG,
     headless=False,
     humanize=True,
-    geoip=use_geoip,
+    geoip=geoip_kw,
     proxy=proxy_arg,
     screen=screens[OS_ARG],
     user_data_dir=UDD,
@@ -261,7 +314,14 @@ with Camoufox(
     # persistent_context=True devolve BrowserContext (não Browser).
     # BrowserContext.new_page() existe normalmente em Playwright.
     page = browser.new_page()
-    page.goto(URL)
+    # Tor pode estar lento ou com exit ruim — 60s evita matar a sessão por timeout
+    # de navegação; mesmo que goto falhe, a janela continua aberta pro usuário
+    # decidir (recarregar, trocar circuito, ou Ctrl+C).
+    try:
+        page.goto(URL, timeout=60_000)
+    except Exception as e:
+        print(f"[ghost] aviso: page.goto falhou ({type(e).__name__}: {e})")
+        print(f"[ghost] janela aberta mesmo assim — tente recarregar ou Ctrl+C")
     try:
         # bloqueia até o usuário fechar o navegador inteiro (todas as janelas).
         # Context emite "close" quando o processo Firefox encerra.

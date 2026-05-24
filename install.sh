@@ -218,6 +218,71 @@ else
     FAILED+=("tor: saída SOCKS5 não confirmada (testou check.torproject.org + ipify)")
 fi
 
+# -------- 4b. wrapper global 'ghost-browser' em ~/.local/bin --------
+# Cria um comando único 'ghost-browser' no PATH do usuário. Quando executado,
+# pergunta se quer e-mail temporário (MAIL=1) e dispara ghost.sh aqui no repo.
+# Sem sudo: ~/.local/bin é XDG padrão e a maioria das distros já o coloca no PATH.
+WRAPPER_DIR="$HOME/.local/bin"
+WRAPPER_PATH="$WRAPPER_DIR/ghost-browser"
+
+mkdir -p "$WRAPPER_DIR"
+
+# Heredoc com aspas em 'GHOSTBROWSER' = nada é expandido aqui; só substituímos
+# GHOST_DIR depois via sed (mais seguro que expandir $SCRIPT_DIR no heredoc e
+# arriscar caracteres especiais no caminho do repo).
+cat > "$WRAPPER_PATH" <<'GHOSTBROWSER'
+#!/usr/bin/env bash
+# ghost-browser — wrapper interativo instalado por install.sh.
+# Pergunta se quer e-mail temporário descartável e dispara ghost.sh do repo.
+# Não edite à mão: é regenerado a cada install.sh.
+
+set -euo pipefail
+
+GHOST_DIR="__GHOST_DIR__"
+
+if [[ ! -x "$GHOST_DIR/ghost.sh" ]]; then
+    echo "[ghost-browser] não achei ghost.sh em $GHOST_DIR" >&2
+    echo "                rode './install.sh' de novo a partir do repo correto." >&2
+    exit 1
+fi
+
+# Só pergunta se MAIL não veio do ambiente — assim scripts podem fixar MAIL=0/1.
+if [[ -z "${MAIL:-}" ]]; then
+    if [[ -t 0 && -t 1 ]]; then
+        read -r -p "[ghost-browser] Quer e-mail temporário descartável? [y/N] " ans
+        case "$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')" in
+            y|yes|s|sim) export MAIL=1 ;;
+            *)           export MAIL=0 ;;
+        esac
+    else
+        export MAIL=0
+    fi
+fi
+
+exec "$GHOST_DIR/ghost.sh" "$@"
+GHOSTBROWSER
+
+# Substitui placeholder pelo caminho real do repo. Usa | como delimitador
+# pra tolerar / no path, e escapa & que tem significado especial no sed.
+GHOST_DIR_ESC="$(printf '%s' "$SCRIPT_DIR" | sed 's/[&|]/\\&/g')"
+sed -i.bak "s|__GHOST_DIR__|$GHOST_DIR_ESC|" "$WRAPPER_PATH"
+rm -f "$WRAPPER_PATH.bak"
+chmod +x "$WRAPPER_PATH"
+
+info "Wrapper global criado: $WRAPPER_PATH"
+echo "wrapper:$WRAPPER_PATH" >> "$PKG_TRACK_FILE"
+INSTALLED+=("wrapper: $WRAPPER_PATH (comando 'ghost-browser')")
+
+# Aviso se ~/.local/bin não está no PATH (raro, mas existe em distros minimalistas).
+case ":$PATH:" in
+    *":$WRAPPER_DIR:"*) ;;
+    *)
+        warn "$WRAPPER_DIR não está no \$PATH — adicione no seu shell rc:"
+        warn "    echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.zshrc   # ou ~/.bashrc"
+        warn "  Depois reabra o terminal e rode: ghost-browser"
+        ;;
+esac
+
 # -------- 5. resumo final --------
 echo
 echo "================ RESUMO DA INSTALAÇÃO ================"
@@ -243,6 +308,8 @@ else
 fi
 echo
 echo "Exemplos de uso:"
+echo "  ghost-browser                                    # comando global: pergunta sobre e-mail e abre browser"
+echo "  ghost-browser https://site.com/signup            # mesmo, mas já passando URL"
 echo "  ./ghost.sh                                       # default: Tor + OS aleatório + perfil descartável"
 echo "  ./ghost.sh https://site.com/signup               # URL direta"
 echo "  PROXY=none ./ghost.sh                            # sem proxy (IP real, fingerprint trocado)"

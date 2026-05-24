@@ -25,7 +25,24 @@ GREEN='\033[0;32m'; YELLOW='\033[0;33m'; NC='\033[0m'
 info() { echo -e "${GREEN}[*]${NC} $*"; }
 warn() { echo -e "${YELLOW}[!]${NC} $*"; }
 
-OLD_IP="$(curl -s --max-time 8 --socks5-hostname 127.0.0.1:9050 https://api.ipify.org || echo desconhecido)"
+# api.ipify.org / ipinfo.io são Cloudflare-blocked pra exits Tor (HTTP 403).
+# check.torproject.org/api/ip é purpose-built pra detectar Tor e devolve JSON
+# com .IP — único endpoint estável atrás de exit Tor. Tem fallback de cortesia
+# pra icanhazip caso a Tor Project API esteja fora.
+tor_exit_ip() {
+    local resp ip
+    resp="$(curl -s --max-time 10 --socks5-hostname 127.0.0.1:9050 \
+        https://check.torproject.org/api/ip 2>/dev/null || true)"
+    ip="$(printf '%s' "$resp" | jq -r '.IP // empty' 2>/dev/null || true)"
+    if [[ -z "$ip" ]]; then
+        ip="$(curl -s --max-time 8 --socks5-hostname 127.0.0.1:9050 \
+            https://icanhazip.com 2>/dev/null | tr -d '[:space:]' || true)"
+    fi
+    [[ -n "$ip" ]] || ip="desconhecido"
+    printf '%s' "$ip"
+}
+
+OLD_IP="$(tor_exit_ip)"
 info "IP atual via Tor: $OLD_IP"
 
 # -------- Caminho rápido: ControlPort --------
@@ -42,7 +59,7 @@ fi
 info "Aguardando novo circuito (5s)..."
 sleep 5
 
-NEW_IP="$(curl -s --max-time 10 --socks5-hostname 127.0.0.1:9050 https://api.ipify.org || echo desconhecido)"
+NEW_IP="$(tor_exit_ip)"
 info "Novo IP via Tor: $NEW_IP"
 
 if [[ "$OLD_IP" == "$NEW_IP" ]]; then
