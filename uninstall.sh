@@ -16,7 +16,7 @@ GREEN='\033[0;32m'; YELLOW='\033[0;33m'; NC='\033[0m'
 info() { echo -e "${GREEN}[*]${NC} $*"; }
 warn() { echo -e "${YELLOW}[!]${NC} $*"; }
 
-OS_KIND="$(ghost_os)" || { warn "S.O. não suportado — abortando."; exit 1; }
+OS_KIND="$(anon_os)" || { warn "S.O. não suportado — abortando."; exit 1; }
 info "S.O. detectado: $OS_KIND"
 
 VENV="$HOME/.camoufox-venv"
@@ -36,51 +36,51 @@ while IFS= read -r CACHE_DIR; do
         info "Removendo cache binário do Camoufox em $CACHE_DIR..."
         rm -rf "$CACHE_DIR"
     fi
-done < <(ghost_camoufox_cache_dirs)
+done < <(anon_camoufox_cache_dirs)
 
 # -------- 3. perfis temporários residuais --------
 # Usa $TMPDIR no macOS (/var/folders/.../T) em vez de /tmp.
 info "Limpando perfis temporários residuais..."
-T="$(ghost_tmp_prefix)"
-rm -rf "$T"/cbrowser-* "$T"/cfox-* "$T"/ghost-* 2>/dev/null || true
+T="$(anon_tmp_prefix)"
+rm -rf "$T"/cbrowser-* "$T"/cfox-* "$T"/anon-* 2>/dev/null || true
 # Limpa também /tmp diretamente caso TMPDIR aponte pra outro lugar
-rm -rf /tmp/cbrowser-* /tmp/cfox-* /tmp/ghost-* 2>/dev/null || true
+rm -rf /tmp/cbrowser-* /tmp/cfox-* /tmp/anon-* 2>/dev/null || true
 
 # -------- 3b. perfis persistentes (opcional, interativo) --------
-# KEEP=nome ./ghost.sh salva em ~/.ghost-browser/profiles/<nome>/.
+# KEEP=nome ./anonymous.sh salva em ~/.anonymous-browser/profiles/<nome>/.
 # Pergunta antes de remover — usuário pode querer guardar essas identidades.
-GHOST_PROFILES="$HOME/.ghost-browser"
-if [[ -d "$GHOST_PROFILES" ]]; then
+ANON_PROFILES="$HOME/.anonymous-browser"
+if [[ -d "$ANON_PROFILES" ]]; then
     PROFILES_FOUND=()
-    if [[ -d "$GHOST_PROFILES/profiles" ]]; then
-        for d in "$GHOST_PROFILES/profiles"/*/; do
+    if [[ -d "$ANON_PROFILES/profiles" ]]; then
+        for d in "$ANON_PROFILES/profiles"/*/; do
             [[ -d "$d" ]] && PROFILES_FOUND+=("$(basename "$d")")
         done
     fi
     if [[ ${#PROFILES_FOUND[@]} -gt 0 ]]; then
         echo
-        warn "Perfis persistentes encontrados em $GHOST_PROFILES/profiles/:"
+        warn "Perfis persistentes encontrados em $ANON_PROFILES/profiles/:"
         warn "  ${PROFILES_FOUND[*]}"
         warn "Esses contêm cookies, histórico e identidade fixada (OS) entre sessões."
         read -r -p "Apagar TODOS os perfis persistentes? [y/N] " RESP
         RESP_LOW="$(printf '%s' "$RESP" | tr '[:upper:]' '[:lower:]')"
         if [[ "$RESP_LOW" =~ ^y(es)?$ ]]; then
-            info "Removendo $GHOST_PROFILES..."
-            rm -rf "$GHOST_PROFILES"
+            info "Removendo $ANON_PROFILES..."
+            rm -rf "$ANON_PROFILES"
         else
-            info "Mantendo perfis persistentes em $GHOST_PROFILES/profiles/."
+            info "Mantendo perfis persistentes em $ANON_PROFILES/profiles/."
         fi
     else
         # Diretório existe mas sem perfis — limpa silenciosamente.
-        rmdir "$GHOST_PROFILES/profiles" 2>/dev/null || true
-        rmdir "$GHOST_PROFILES" 2>/dev/null || true
+        rmdir "$ANON_PROFILES/profiles" 2>/dev/null || true
+        rmdir "$ANON_PROFILES" 2>/dev/null || true
     fi
 fi
 
 # -------- 4. pacotes do sistema (opcional) --------
 # Só remove o que install.sh efetivamente instalou neste sistema. Isso evita
-# desinstalar tor/curl/chromium que o usuário já tinha antes do ghost-browser.
-TRACK="$HOME/.cache/ghost-browser/installed-pkgs"
+# desinstalar tor/curl/chromium que o usuário já tinha antes do anonymous-browser.
+TRACK="$HOME/.cache/anonymous-browser/installed-pkgs"
 echo
 if [[ -f "$TRACK" ]]; then
     # Bash 3.2 portable: while-read em vez de mapfile.
@@ -118,16 +118,16 @@ if [[ -f "$TRACK" ]]; then
             done
 
             # Para a Tor antes de desinstalar (válido em ambos S.O.)
-            ghost_service_disable tor
+            anon_service_disable tor
 
             if [[ ${#FORMULAE[@]} -gt 0 ]]; then
                 info "Removendo pacotes (${OS_KIND}): ${FORMULAE[*]}"
-                ghost_pkg_remove "${FORMULAE[@]}" || warn "alguma remoção falhou — verifique manualmente"
+                anon_pkg_remove "${FORMULAE[@]}" || warn "alguma remoção falhou — verifique manualmente"
             fi
 
             if [[ ${#CASKS[@]} -gt 0 && "$OS_KIND" == "macos" ]]; then
                 info "Removendo brew casks: ${CASKS[*]}"
-                ghost_cask_uninstall "${CASKS[@]}" || warn "alguma remoção de cask falhou"
+                anon_cask_uninstall "${CASKS[@]}" || warn "alguma remoção de cask falhou"
             fi
 
             if [[ ${#FLATPAKS[@]} -gt 0 ]]; then
@@ -145,8 +145,8 @@ if [[ -f "$TRACK" ]]; then
 
             # Cleanup Debian-specific: repo apt da Brave (criado pelo install.sh
             # quando foi rota sem-snap). Em Arch/Fedora não há repo terceiro
-            # adicionado por nós, então o ghost_pkg_remove acima já bastou.
-            DISTRO_NOW="$(ghost_linux_distro 2>/dev/null || echo other)"
+            # adicionado por nós, então o anon_pkg_remove acima já bastou.
+            DISTRO_NOW="$(anon_linux_distro 2>/dev/null || echo other)"
             if [[ "$DISTRO_NOW" == "debian" ]] \
                && printf '%s\n' "${FORMULAE[@]}" | grep -qx brave-browser; then
                 info "Removendo repositório apt da Brave..."
@@ -156,7 +156,7 @@ if [[ -f "$TRACK" ]]; then
             fi
 
             rm -f "$TRACK"
-            rmdir "$HOME/.cache/ghost-browser" 2>/dev/null || true
+            rmdir "$HOME/.cache/anonymous-browser" 2>/dev/null || true
             info "Pacotes removidos."
         else
             info "Mantendo pacotes instalados."
@@ -167,7 +167,7 @@ if [[ -f "$TRACK" ]]; then
 else
     warn "Sem registro em $TRACK (install.sh nunca rodou aqui, ou é versão antiga)."
     warn "Não removerei pacotes automaticamente para evitar tirar algo que você já tinha."
-    case "$(ghost_pkg_manager 2>/dev/null)" in
+    case "$(anon_pkg_manager 2>/dev/null)" in
         apt)    warn "Se quiser remover manualmente: sudo apt remove tor" ;;
         pacman) warn "Se quiser remover manualmente: sudo pacman -Rns tor" ;;
         dnf)    warn "Se quiser remover manualmente: sudo dnf remove tor" ;;

@@ -47,12 +47,12 @@ info "IP atual via Tor: $OLD_IP"
 
 # -------- Caminho rápido: ControlPort --------
 # Usa nc -z em vez de /dev/tcp porque o bash 3.2 do macOS não suporta /dev/tcp.
-if ghost_port_open 127.0.0.1 9051; then
+if anon_port_open 127.0.0.1 9051; then
     info "ControlPort 9051 aberta — enviando SIGNAL NEWNYM..."
     printf 'AUTHENTICATE ""\r\nSIGNAL NEWNYM\r\nQUIT\r\n' | nc 127.0.0.1 9051 || true
 else
     warn "ControlPort 9051 fechada — fazendo fallback para reload do serviço Tor (mais lento)."
-    ghost_service_reload tor
+    anon_service_reload tor
 fi
 
 # Tor leva alguns segundos para fechar circuitos antigos e abrir novo

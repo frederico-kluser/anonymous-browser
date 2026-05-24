@@ -9,8 +9,8 @@
 > ⚠️ **Aviso de leitura (refactor 2026-05):** este documento ainda menciona
 > `spoof-browser.sh`, `camoufox-spoof.sh` e a instalação automática de
 > Chromium/Brave/Flatpak — esses scripts e a instalação foram **removidos** na
-> simplificação de 2026-05 (PR `ai-task-1778743374`). O `ghost.sh` virou ponto
-> único de entrada, controlado pelas env vars `PROXY`, `KEEP` e `GHOST_OS`. As
+> simplificação de 2026-05 (PR `ai-task-1778743374`). O `anonymous.sh` virou ponto
+> único de entrada, controlado pelas env vars `PROXY`, `KEEP` e `ANON_OS`. As
 > referências abaixo são preservadas como contexto histórico dos bugs fechados.
 
 ---
@@ -99,12 +99,12 @@ Camoufox 0.4.11 escolhe qual método Playwright chamar baseado em `persistent_co
 | `False` (default) | `firefox.launch()` | **NÃO** |
 | `True` | `firefox.launch_persistent_context()` | SIM |
 
-Tanto `ghost.sh` quanto `camoufox-spoof.sh` passavam `user_data_dir=UDD` com `persistent_context=False` — combinação inválida.
+Tanto `anonymous.sh` quanto `camoufox-spoof.sh` passavam `user_data_dir=UDD` com `persistent_context=False` — combinação inválida.
 
 ### Fix
-Ambos scripts: `persistent_context=True`. Em `ghost.sh`, também trocado `page.wait_for_event("close")` por `browser.wait_for_event("close")` (no contexto), que dispara quando o navegador inteiro encerra.
+Ambos scripts: `persistent_context=True`. Em `anonymous.sh`, também trocado `page.wait_for_event("close")` por `browser.wait_for_event("close")` (no contexto), que dispara quando o navegador inteiro encerra.
 
-**Cleanup descartável segue intacto**: o perfil persistente vive em `$TMP` (`/tmp/ghost-XXXXXX` no Linux, `$TMPDIR/ghost-XXXXXX` no macOS), e o `trap cleanup INT TERM HUP EXIT` apaga `$TMP` na saída de qualquer condição.
+**Cleanup descartável segue intacto**: o perfil persistente vive em `$TMP` (`/tmp/anon-XXXXXX` no Linux, `$TMPDIR/anon-XXXXXX` no macOS), e o `trap cleanup INT TERM HUP EXIT` apaga `$TMP` na saída de qualquer condição.
 
 ### Validação
 Smoke test headless em Camoufox 0.4.11:
@@ -124,20 +124,20 @@ OK
 ```
 
 ### Status
-✅ **Fechado** em `ghost.sh` e `camoufox-spoof.sh`.
+✅ **Fechado** em `anonymous.sh` e `camoufox-spoof.sh`.
 
 ---
 
 ## Bug 4 — `install.sh` apt-only (quebrava em Arch/Fedora)
 
 ### Sintoma original
-Colega usuário de Arch tentou rodar `./install.sh` e desistiu ao ver `apt-cache show`, `sudo apt install`, `libgtk-3-0t64`. Em qualquer distro não-Debian, o script morria na primeira chamada a `dpkg -s` dentro de `ghost_pkg_is_installed`.
+Colega usuário de Arch tentou rodar `./install.sh` e desistiu ao ver `apt-cache show`, `sudo apt install`, `libgtk-3-0t64`. Em qualquer distro não-Debian, o script morria na primeira chamada a `dpkg -s` dentro de `anon_pkg_is_installed`.
 
 ### Causa raiz
 O branch Linux de `lib/platform.sh` chamava `dpkg`/`apt` direto. `install.sh` tinha nomes de pacote Debian-only (`libasound2t64`, `netcat-openbsd`, `python3-venv`), e a rota Brave era exclusivamente apt-based (`/etc/apt/sources.list.d/...`).
 
 ### Fix
-1. **`lib/platform.sh`** — adicionadas funções `ghost_linux_distro` (lê `/etc/os-release`, retorna `debian|arch|fedora|other`) e `ghost_pkg_manager` (`apt|pacman|dnf|brew`). As funções `ghost_pkg_{is_installed,install,remove}` agora despacham via `case "$(ghost_pkg_manager)"`. Acrescentadas `ghost_pkg_update_cache`, `ghost_flatpak_available`, `ghost_flatpak_ensure_flathub`, `ghost_flatpak_install`.
+1. **`lib/platform.sh`** — adicionadas funções `anon_linux_distro` (lê `/etc/os-release`, retorna `debian|arch|fedora|other`) e `anon_pkg_manager` (`apt|pacman|dnf|brew`). As funções `anon_pkg_{is_installed,install,remove}` agora despacham via `case "$(anon_pkg_manager)"`. Acrescentadas `anon_pkg_update_cache`, `anon_flatpak_available`, `anon_flatpak_ensure_flathub`, `anon_flatpak_install`.
 2. **`install.sh`** — bloco de pacotes substituído por `case "$DISTRO"` com listas separadas:
    - Debian: mantém `pick_pkg` pro t64; `libgtk-3-0t64`, `netcat-openbsd`, `python3-venv`...
    - Arch: `gtk3`, `alsa-lib`, `dbus-glib`, `libxcb`, `openbsd-netcat`, `python python-pip`
@@ -148,8 +148,8 @@ O branch Linux de `lib/platform.sh` chamava `dpkg`/`apt` direto. `install.sh` ti
 ### Validação
 ```bash
 source lib/platform.sh
-ghost_linux_distro     # debian (Pop!_OS), arch (Arch), fedora (Fedora)
-ghost_pkg_manager      # apt, pacman, dnf
+anon_linux_distro     # debian (Pop!_OS), arch (Arch), fedora (Fedora)
+anon_pkg_manager      # apt, pacman, dnf
 ```
 
 Teste de container (alto valor, baixo custo):
@@ -169,15 +169,15 @@ docker run --rm -it -v "$PWD:/repo" -w /repo archlinux:latest \
 
 Não foi um bug, mas vale registrar: depois dos 3 fixes acima, o projeto ganhou suporte macOS através de uma camada de abstração (`lib/platform.sh`) que normaliza diferenças entre Linux e macOS:
 
-- Detecção de S.O. (`ghost_os`)
-- Gerenciador de pacotes (`ghost_pkg_*` → `apt` ou `brew`)
-- Casks brew (`ghost_cask_*` → só macOS)
-- Serviços (`ghost_service_*` → `systemctl` ou `brew services`)
-- Caminho do Tor (`ghost_chrome_binary`, `ghost_camoufox_cache_dirs`, `ghost_tor_config_path`, `ghost_tmp_prefix`)
+- Detecção de S.O. (`anon_os`)
+- Gerenciador de pacotes (`anon_pkg_*` → `apt` ou `brew`)
+- Casks brew (`anon_cask_*` → só macOS)
+- Serviços (`anon_service_*` → `systemctl` ou `brew services`)
+- Caminho do Tor (`anon_chrome_binary`, `anon_camoufox_cache_dirs`, `anon_tor_config_path`, `anon_tmp_prefix`)
 
 Compatibilidade: bash 3.2 portable (sem `mapfile`, `${var,,}`, ou arrays associativos — `/bin/bash` no macOS é 3.2.57).
 
-Todos os scripts do projeto (`install.sh`, `uninstall.sh`, `ghost.sh`, `camoufox-spoof.sh`, `spoof-browser.sh`, `new-tor-circuit.sh`) agora fazem `source "$SCRIPT_DIR/lib/platform.sh"`.
+Todos os scripts do projeto (`install.sh`, `uninstall.sh`, `anonymous.sh`, `camoufox-spoof.sh`, `spoof-browser.sh`, `new-tor-circuit.sh`) agora fazem `source "$SCRIPT_DIR/lib/platform.sh"`.
 
 ---
 
@@ -189,7 +189,7 @@ Todos os scripts do projeto (`install.sh`, `uninstall.sh`, `ghost.sh`, `camoufox
 | Tor bootstrap (Linux) | `journalctl -u tor@default --no-pager \| grep Bootstrap \| tail -5` |
 | Tor bootstrap (macOS) | `log show --predicate 'process == "tor"' --last 5m` |
 | Tor porta | `nc -z -w 2 127.0.0.1 9050 && echo open \|\| echo closed` |
-| Browser detectado | `ghost_chrome_binary` (após `source lib/platform.sh`) |
+| Browser detectado | `anon_chrome_binary` (após `source lib/platform.sh`) |
 | Camoufox version | `~/.camoufox-venv/bin/pip show camoufox \| grep Version` |
 | Repo Brave (Linux) | `cat /etc/apt/sources.list.d/brave-browser-release.list` |
 | Cache Camoufox (macOS) | `ls -la ~/Library/Caches/camoufox/` |

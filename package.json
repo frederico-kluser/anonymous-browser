@@ -1,9 +1,9 @@
 {
-  "name": "ghost-browser",
+  "name": "anonymous-browser",
   "version": "0.1.0",
   "description": "Disposable, fingerprint-rotating browser via Tor (Camoufox-based) with optional real-time disposable email — Linux + macOS.",
   "bin": {
-    "ghost-browser": "bin/ghost-browser.js"
+    "anonymous-browser": "bin/anonymous-browser.js"
   },
   "scripts": {
     "postinstall": "node bin/postinstall.js"
@@ -11,8 +11,8 @@
   "files": [
     "bin/",
     "lib/",
-    "ghost.sh",
-    "ghost-mail.sh",
+    "anonymous.sh",
+    "anonymous-mail.sh",
     "install.sh",
     "new-tor-circuit.sh",
     "uninstall.sh",
@@ -28,7 +28,8 @@
     "fingerprint",
     "camoufox",
     "disposable",
-    "anti-fingerprinting"
+    "anti-fingerprinting",
+    "anonymous"
   ],
   "author": "Frederico Kluser",
   "license": "MIT",

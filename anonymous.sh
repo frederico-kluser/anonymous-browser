@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# ghost.sh — super-comando do ghost-browser
+# anonymous.sh — super-comando do anonymous-browser
 #
 # Pergunta a URL de cadastro, força novo circuito Tor (se Tor for o proxy),
-# abre Camoufox com OS spoofado (aleatório por default, ou via $GHOST_OS),
+# abre Camoufox com OS spoofado (aleatório por default, ou via $ANON_OS),
 # nega geolocalização silenciosamente e apaga tudo (perfil temporário + browser)
 # quando o usuário:
 #   - fechar a janela do navegador
@@ -10,19 +10,19 @@
 #   - fechar a janela do terminal
 #
 # Uso:
-#   ./ghost.sh                                  # pergunta a URL
-#   ./ghost.sh https://site/signup              # passa URL direto
+#   ./anonymous.sh                                  # pergunta a URL
+#   ./anonymous.sh https://site/signup              # passa URL direto
 #
 # Env vars (todas opcionais):
 #   PROXY    tor (default) | none | socks5://host:port | http://host:port | etc.
-#   KEEP     nome do perfil persistente em ~/.ghost-browser/profiles/<nome>/
+#   KEEP     nome do perfil persistente em ~/.anonymous-browser/profiles/<nome>/
 #            (descartável se vazio). OS é fixado na primeira vez.
-#   GHOST_OS windows | macos | linux. Força um OS específico (sem sorteio).
+#   ANON_OS windows | macos | linux. Força um OS específico (sem sorteio).
 #   USE_TOR  0 = alias de PROXY=none (compat com docs antigas)
 #   MAIL     1 = gera e-mail descartável e mostra os recebidos em tempo real
-#            no mesmo terminal (via ghost-mail.sh; usa o mesmo PROXY/perfil).
-#   GHOST_MAIL_POLL   intervalo de polling do e-mail em segundos (default 5)
-#   GHOST_MAIL_PROXY  override de proxy só pro e-mail (ex.: none se o exit
+#            no mesmo terminal (via anonymous-mail.sh; usa o mesmo PROXY/perfil).
+#   ANON_MAIL_POLL   intervalo de polling do e-mail em segundos (default 5)
+#   ANON_MAIL_PROXY  override de proxy só pro e-mail (ex.: none se o exit
 #                     Tor estiver bloqueado pelo Cloudflare do mail.tm)
 #
 # Licença: MIT — veja LICENSE
@@ -55,7 +55,7 @@ cleanup() {
 trap cleanup INT TERM HUP EXIT
 
 # -------- pré-checks --------
-OS_KIND="$(ghost_os)" || { echo "[!] S.O. não suportado"; exit 1; }
+OS_KIND="$(anon_os)" || { echo "[!] S.O. não suportado"; exit 1; }
 
 if [[ ! -d "$VENV" ]]; then
     echo "[!] venv Camoufox não encontrado em $VENV"
@@ -106,29 +106,29 @@ if [[ -n "${KEEP:-}" ]]; then
         echo "    Use apenas letras, números, '_' e '-' (sem '.', '/', espaços)."
         exit 1
     fi
-    PROFILE_DIR="$HOME/.ghost-browser/profiles/$KEEP"
+    PROFILE_DIR="$HOME/.anonymous-browser/profiles/$KEEP"
     mkdir -p "$PROFILE_DIR"
     PERSISTENT=1
 fi
 
-# -------- resolve GHOST_OS --------
+# -------- resolve ANON_OS --------
 OS_LIST=(windows macos linux)
 OS_FILE=""
-[[ -n "$PROFILE_DIR" ]] && OS_FILE="$PROFILE_DIR/.ghost-os"
+[[ -n "$PROFILE_DIR" ]] && OS_FILE="$PROFILE_DIR/.anon-os"
 
-if [[ -n "${GHOST_OS:-}" ]]; then
+if [[ -n "${ANON_OS:-}" ]]; then
     # Camoufox aceita apenas lowercase ('windows'/'macos'/'linux'); tolera erro
     # do usuário ('Windows', 'MacOS', etc.). tr é portable em bash 3.2 (macOS).
-    GHOST_OS_LOWER="$(printf '%s' "$GHOST_OS" | tr '[:upper:]' '[:lower:]')"
-    case "$GHOST_OS_LOWER" in
-        windows|macos|linux) OS_RAND="$GHOST_OS_LOWER" ;;
+    ANON_OS_LOWER="$(printf '%s' "$ANON_OS" | tr '[:upper:]' '[:lower:]')"
+    case "$ANON_OS_LOWER" in
+        windows|macos|linux) OS_RAND="$ANON_OS_LOWER" ;;
         *)
-            echo "[!] GHOST_OS inválido: '$GHOST_OS'"
+            echo "[!] ANON_OS inválido: '$ANON_OS'"
             echo "    Aceitos: windows | macos | linux"
             exit 1
             ;;
     esac
-    OS_SOURCE="forçado via GHOST_OS"
+    OS_SOURCE="forçado via ANON_OS"
     [[ -n "$OS_FILE" ]] && printf '%s\n' "$OS_RAND" > "$OS_FILE"
 elif [[ -n "$OS_FILE" && -s "$OS_FILE" ]]; then
     OS_RAND="$(tr -d '[:space:]' < "$OS_FILE")"
@@ -151,9 +151,9 @@ fi
 
 # -------- garante Tor up se for usar Tor --------
 if [[ "$USE_TOR_INTERNAL" -eq 1 ]]; then
-    if ! ghost_service_is_active tor; then
-        echo "[ghost] iniciando Tor ($OS_KIND)..."
-        ghost_service_start tor 2>/dev/null || true
+    if ! anon_service_is_active tor; then
+        echo "[anon] iniciando Tor ($OS_KIND)..."
+        anon_service_start tor 2>/dev/null || true
         sleep 3
     fi
 fi
@@ -161,7 +161,7 @@ fi
 # -------- pede URL (aceita também via $1) --------
 URL="${1:-}"
 if [[ -z "$URL" ]]; then
-    read -r -p "[ghost] URL de cadastro: " URL
+    read -r -p "[anon] URL de cadastro: " URL
 fi
 if [[ -z "$URL" ]]; then
     echo "[!] URL vazia, abortando."
@@ -174,7 +174,7 @@ fi
 
 # -------- novo circuito Tor (só se Tor) --------
 if [[ "$USE_TOR_INTERNAL" -eq 1 ]]; then
-    echo "[ghost] forçando novo circuito Tor..."
+    echo "[anon] forçando novo circuito Tor..."
     "$SCRIPT_DIR/new-tor-circuit.sh" || true
 fi
 
@@ -189,7 +189,7 @@ if [[ -n "$PROXY_URL" ]]; then
     CURL_PROXY_ARGS=()
     while IFS= read -r line; do
         [[ -n "$line" ]] && CURL_PROXY_ARGS+=("$line")
-    done < <(ghost_curl_proxy_args "$PROXY_URL" || true)
+    done < <(anon_curl_proxy_args "$PROXY_URL" || true)
 
     # Ordem: Tor-API primeiro (purpose-built, nunca bloqueia), depois fallbacks
     # caso o proxy não seja Tor.
@@ -214,9 +214,9 @@ if [[ -n "$PROXY_URL" ]]; then
     done
 
     if [[ -n "$GEOIP_VALUE" ]]; then
-        echo "[ghost] IP geoip: $GEOIP_VALUE ($PROXY_LABEL)"
+        echo "[anon] IP geoip: $GEOIP_VALUE ($PROXY_LABEL)"
     else
-        echo "[ghost] geoip : não consegui resolver IP via proxy — abrindo sem geoip"
+        echo "[anon] geoip : não consegui resolver IP via proxy — abrindo sem geoip"
         echo "         (timezone/locale podem ficar inconsistentes com o IP de saída)"
     fi
 fi
@@ -227,31 +227,31 @@ if [[ "$PERSISTENT" -eq 1 ]]; then
     PROFILE_LABEL="$TMP (PERSISTENTE — não será apagado)"
 else
     # $TMPDIR no macOS (/var/folders/.../T); /tmp no Linux. mktemp aceita.
-    TMP="$(mktemp -d "$(ghost_tmp_prefix)/ghost-XXXXXX")"
+    TMP="$(mktemp -d "$(anon_tmp_prefix)/anon-XXXXXX")"
     PROFILE_LABEL="$TMP (descartável)"
 fi
 
-echo "[ghost] OS spoof : $OS_RAND ($OS_SOURCE)"
+echo "[anon] OS spoof : $OS_RAND ($OS_SOURCE)"
 if [[ -n "$PROXY_URL" ]]; then
-    echo "[ghost] proxy   : $PROXY_URL ($PROXY_LABEL)"
+    echo "[anon] proxy   : $PROXY_URL ($PROXY_LABEL)"
 else
-    echo "[ghost] proxy   : $PROXY_LABEL — geoip desativado pra não vazar IP real"
+    echo "[anon] proxy   : $PROXY_LABEL — geoip desativado pra não vazar IP real"
 fi
-echo "[ghost] perfil  : $PROFILE_LABEL"
-echo "[ghost] URL     : $URL"
+echo "[anon] perfil  : $PROFILE_LABEL"
+echo "[anon] URL     : $URL"
 
 # -------- e-mail descartável em tempo real (opt-in: MAIL=1) --------
-# Roda ghost-mail.sh em background reaproveitando o mesmo proxy e o mesmo
+# Roda anonymous-mail.sh em background reaproveitando o mesmo proxy e o mesmo
 # diretório de perfil; ele imprime o endereço e os e-mails no mesmo terminal.
 # cleanup() mata esse PID ao fechar o browser/Ctrl+C (e ele apaga a conta).
 if [[ "${MAIL:-0}" == "1" ]]; then
-    if [[ -f "$SCRIPT_DIR/ghost-mail.sh" ]]; then
-        GHOST_PROXY_URL="$PROXY_URL" GHOST_PROXY_RESOLVED=1 \
-        GHOST_MAIL_PROFILE="$TMP" GHOST_MAIL_PERSISTENT="$PERSISTENT" \
-            bash "$SCRIPT_DIR/ghost-mail.sh" &
+    if [[ -f "$SCRIPT_DIR/anonymous-mail.sh" ]]; then
+        ANON_PROXY_URL="$PROXY_URL" ANON_PROXY_RESOLVED=1 \
+        ANON_MAIL_PROFILE="$TMP" ANON_MAIL_PERSISTENT="$PERSISTENT" \
+            bash "$SCRIPT_DIR/anonymous-mail.sh" &
         MAIL_PID=$!
     else
-        echo "[!] MAIL=1 mas ghost-mail.sh não encontrado — seguindo sem e-mail."
+        echo "[!] MAIL=1 mas anonymous-mail.sh não encontrado — seguindo sem e-mail."
     fi
 fi
 
@@ -294,7 +294,7 @@ elif GEOIP_VAL:
 else:
     geoip_kw = False
 
-print(f"[ghost] abrindo Camoufox como '{OS_ARG}' -> {URL}")
+print(f"[anon] abrindo Camoufox como '{OS_ARG}' -> {URL}")
 
 with Camoufox(
     os=OS_ARG,
@@ -320,8 +320,8 @@ with Camoufox(
     try:
         page.goto(URL, timeout=60_000)
     except Exception as e:
-        print(f"[ghost] aviso: page.goto falhou ({type(e).__name__}: {e})")
-        print(f"[ghost] janela aberta mesmo assim — tente recarregar ou Ctrl+C")
+        print(f"[anon] aviso: page.goto falhou ({type(e).__name__}: {e})")
+        print(f"[anon] janela aberta mesmo assim — tente recarregar ou Ctrl+C")
     try:
         # bloqueia até o usuário fechar o navegador inteiro (todas as janelas).
         # Context emite "close" quando o processo Firefox encerra.

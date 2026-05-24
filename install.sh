@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh — instala dependências do ghost-browser de forma idempotente
+# install.sh — instala dependências do anonymous-browser de forma idempotente
 #
 # Instala:
 #   - Tor (proxy SOCKS5 em 127.0.0.1:9050)
@@ -20,14 +20,14 @@ info() { echo -e "${GREEN}[*]${NC} $*"; }
 warn() { echo -e "${YELLOW}[!]${NC} $*"; }
 err()  { echo -e "${RED}[x]${NC} $*"; }
 
-OS_KIND="$(ghost_os)" || { err "S.O. não suportado."; exit 1; }
+OS_KIND="$(anon_os)" || { err "S.O. não suportado."; exit 1; }
 info "S.O. detectado: $OS_KIND"
 if [[ "$OS_KIND" == "macos" ]]; then
-    ghost_require_brew || exit 1
+    anon_require_brew || exit 1
 fi
 
 VENV="$HOME/.camoufox-venv"
-PKG_TRACK_DIR="$HOME/.cache/ghost-browser"
+PKG_TRACK_DIR="$HOME/.cache/anonymous-browser"
 PKG_TRACK_FILE="$PKG_TRACK_DIR/installed-pkgs"
 
 # -------- tracking para o resumo final --------
@@ -41,12 +41,12 @@ FAILED=()     # coisas que falharam ou requerem ação manual
 mkdir -p "$PKG_TRACK_DIR"
 
 if [[ "$OS_KIND" == "linux" ]]; then
-    DISTRO="$(ghost_linux_distro)"
-    PM="$(ghost_pkg_manager)" || { err "Nenhum package manager suportado (apt/pacman/dnf) encontrado."; exit 1; }
+    DISTRO="$(anon_linux_distro)"
+    PM="$(anon_pkg_manager)" || { err "Nenhum package manager suportado (apt/pacman/dnf) encontrado."; exit 1; }
     info "Distro Linux: $DISTRO (package manager: $PM)"
 
     # Atualiza cache do package manager antes de consultar pacotes.
-    ghost_pkg_update_cache
+    anon_pkg_update_cache
 
     case "$DISTRO" in
         debian)
@@ -109,14 +109,14 @@ fi
 
 MISSING=()
 for pkg in "${SYS_PKGS[@]}"; do
-    if ! ghost_pkg_is_installed "$pkg"; then
+    if ! anon_pkg_is_installed "$pkg"; then
         MISSING+=("$pkg")
     fi
 done
 
 if [[ ${#MISSING[@]} -gt 0 ]]; then
     info "Instalando pacotes: ${MISSING[*]}"
-    if ghost_pkg_install "${MISSING[@]}"; then
+    if anon_pkg_install "${MISSING[@]}"; then
         # Registra com prefixo `pkg:` pra uninstall.sh diferenciar de cask:/flatpak:/wrapper:
         for p in "${MISSING[@]}"; do
             echo "pkg:$p" >> "$PKG_TRACK_FILE"
@@ -138,12 +138,12 @@ done
 # -------- 2. serviço Tor --------
 # Linux: systemctl enable --now tor. macOS: brew services start tor (persiste
 # entre boots automaticamente — não há "enable" separado).
-if ghost_service_is_active tor; then
+if anon_service_is_active tor; then
     info "Tor já rodando (SOCKS5 9050 responde)."
     SKIPPED+=("serviço: tor já rodando")
 else
     info "Habilitando serviço Tor..."
-    if ghost_service_enable tor; then
+    if anon_service_enable tor; then
         INSTALLED+=("serviço: tor habilitado")
     else
         FAILED+=("serviço: falha ao habilitar tor")
@@ -152,8 +152,8 @@ fi
 
 # Confirma que ficou ativo (port 9050 responde após start)
 sleep 1
-if ! ghost_service_is_active tor; then
-    if ghost_service_start tor; then
+if ! anon_service_is_active tor; then
+    if anon_service_start tor; then
         sleep 2
     else
         FAILED+=("serviço: falha ao iniciar tor")
@@ -214,41 +214,41 @@ if [[ "$TOR_OK" -eq 1 ]]; then
 else
     warn "Não foi possível confirmar Tor em nenhum endpoint testado."
     warn "Pode ser ISP bloqueando, bootstrap incompleto, ou rede caída."
-    warn "Diagnóstico: '$(ghost_service_diag_hint tor)'"
+    warn "Diagnóstico: '$(anon_service_diag_hint tor)'"
     FAILED+=("tor: saída SOCKS5 não confirmada (testou check.torproject.org + ipify)")
 fi
 
-# -------- 4b. wrapper global 'ghost-browser' em ~/.local/bin --------
-# Cria um comando único 'ghost-browser' no PATH do usuário. Quando executado,
-# pergunta se quer e-mail temporário (MAIL=1) e dispara ghost.sh aqui no repo.
+# -------- 4b. wrapper global 'anonymous-browser' em ~/.local/bin --------
+# Cria um comando único 'anonymous-browser' no PATH do usuário. Quando executado,
+# pergunta se quer e-mail temporário (MAIL=1) e dispara anonymous.sh aqui no repo.
 # Sem sudo: ~/.local/bin é XDG padrão e a maioria das distros já o coloca no PATH.
 #
-# Quando install.sh roda via `npm i -g ghost-browser`, o launcher Node
-# (bin/ghost-browser.js) seta GHOST_SKIP_WRAPPER=1 — npm já fornece o binário
-# global, então pular daqui evita ter dois 'ghost-browser' em PATH.
-if [[ "${GHOST_SKIP_WRAPPER:-0}" == "1" ]]; then
-    info "GHOST_SKIP_WRAPPER=1 — pulando wrapper local (npm já forneceu o comando global)."
+# Quando install.sh roda via `npm i -g anonymous-browser`, o launcher Node
+# (bin/anonymous-browser.js) seta ANON_SKIP_WRAPPER=1 — npm já fornece o binário
+# global, então pular daqui evita ter dois 'anonymous-browser' em PATH.
+if [[ "${ANON_SKIP_WRAPPER:-0}" == "1" ]]; then
+    info "ANON_SKIP_WRAPPER=1 — pulando wrapper local (npm já forneceu o comando global)."
 else
 WRAPPER_DIR="$HOME/.local/bin"
-WRAPPER_PATH="$WRAPPER_DIR/ghost-browser"
+WRAPPER_PATH="$WRAPPER_DIR/anonymous-browser"
 
 mkdir -p "$WRAPPER_DIR"
 
-# Heredoc com aspas em 'GHOSTBROWSER' = nada é expandido aqui; só substituímos
-# GHOST_DIR depois via sed (mais seguro que expandir $SCRIPT_DIR no heredoc e
+# Heredoc com aspas em 'ANONBROWSER' = nada é expandido aqui; só substituímos
+# ANON_DIR depois via sed (mais seguro que expandir $SCRIPT_DIR no heredoc e
 # arriscar caracteres especiais no caminho do repo).
-cat > "$WRAPPER_PATH" <<'GHOSTBROWSER'
+cat > "$WRAPPER_PATH" <<'ANONBROWSER'
 #!/usr/bin/env bash
-# ghost-browser — wrapper interativo instalado por install.sh.
-# Pergunta se quer e-mail temporário descartável e dispara ghost.sh do repo.
+# anonymous-browser — wrapper interativo instalado por install.sh.
+# Pergunta se quer e-mail temporário descartável e dispara anonymous.sh do repo.
 # Não edite à mão: é regenerado a cada install.sh.
 
 set -euo pipefail
 
-GHOST_DIR="__GHOST_DIR__"
+ANON_DIR="__ANON_DIR__"
 
-if [[ ! -x "$GHOST_DIR/ghost.sh" ]]; then
-    echo "[ghost-browser] não achei ghost.sh em $GHOST_DIR" >&2
+if [[ ! -x "$ANON_DIR/anonymous.sh" ]]; then
+    echo "[anonymous-browser] não achei anonymous.sh em $ANON_DIR" >&2
     echo "                rode './install.sh' de novo a partir do repo correto." >&2
     exit 1
 fi
@@ -256,7 +256,7 @@ fi
 # Só pergunta se MAIL não veio do ambiente — assim scripts podem fixar MAIL=0/1.
 if [[ -z "${MAIL:-}" ]]; then
     if [[ -t 0 && -t 1 ]]; then
-        read -r -p "[ghost-browser] Quer e-mail temporário descartável? [y/N] " ans
+        read -r -p "[anonymous-browser] Quer e-mail temporário descartável? [y/N] " ans
         case "$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')" in
             y|yes|s|sim) export MAIL=1 ;;
             *)           export MAIL=0 ;;
@@ -266,19 +266,19 @@ if [[ -z "${MAIL:-}" ]]; then
     fi
 fi
 
-exec "$GHOST_DIR/ghost.sh" "$@"
-GHOSTBROWSER
+exec "$ANON_DIR/anonymous.sh" "$@"
+ANONBROWSER
 
 # Substitui placeholder pelo caminho real do repo. Usa | como delimitador
 # pra tolerar / no path, e escapa & que tem significado especial no sed.
-GHOST_DIR_ESC="$(printf '%s' "$SCRIPT_DIR" | sed 's/[&|]/\\&/g')"
-sed -i.bak "s|__GHOST_DIR__|$GHOST_DIR_ESC|" "$WRAPPER_PATH"
+ANON_DIR_ESC="$(printf '%s' "$SCRIPT_DIR" | sed 's/[&|]/\\&/g')"
+sed -i.bak "s|__ANON_DIR__|$ANON_DIR_ESC|" "$WRAPPER_PATH"
 rm -f "$WRAPPER_PATH.bak"
 chmod +x "$WRAPPER_PATH"
 
 info "Wrapper global criado: $WRAPPER_PATH"
 echo "wrapper:$WRAPPER_PATH" >> "$PKG_TRACK_FILE"
-INSTALLED+=("wrapper: $WRAPPER_PATH (comando 'ghost-browser')")
+INSTALLED+=("wrapper: $WRAPPER_PATH (comando 'anonymous-browser')")
 
 # Aviso se ~/.local/bin não está no PATH (raro, mas existe em distros minimalistas).
 case ":$PATH:" in
@@ -286,10 +286,10 @@ case ":$PATH:" in
     *)
         warn "$WRAPPER_DIR não está no \$PATH — adicione no seu shell rc:"
         warn "    echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.zshrc   # ou ~/.bashrc"
-        warn "  Depois reabra o terminal e rode: ghost-browser"
+        warn "  Depois reabra o terminal e rode: anonymous-browser"
         ;;
 esac
-fi  # GHOST_SKIP_WRAPPER
+fi  # ANON_SKIP_WRAPPER
 
 # -------- 5. resumo final --------
 echo
@@ -316,12 +316,12 @@ else
 fi
 echo
 echo "Exemplos de uso:"
-echo "  ghost-browser                                    # comando global: pergunta sobre e-mail e abre browser"
-echo "  ghost-browser https://site.com/signup            # mesmo, mas já passando URL"
-echo "  ./ghost.sh                                       # default: Tor + OS aleatório + perfil descartável"
-echo "  ./ghost.sh https://site.com/signup               # URL direta"
-echo "  PROXY=none ./ghost.sh                            # sem proxy (IP real, fingerprint trocado)"
-echo "  PROXY=socks5://vpn:1080 ./ghost.sh               # VPN custom (Mullvad, ProtonVPN, etc.)"
-echo "  GHOST_OS=macos ./ghost.sh                        # força OS (sem aleatório)"
-echo "  KEEP=trabalho ./ghost.sh https://gmail.com       # identidade persistente (OS fixado)"
-echo "  KEEP=pessoal GHOST_OS=windows ./ghost.sh         # cria identidade nova com OS específico"
+echo "  anonymous-browser                                    # comando global: pergunta sobre e-mail e abre browser"
+echo "  anonymous-browser https://site.com/signup            # mesmo, mas já passando URL"
+echo "  ./anonymous.sh                                       # default: Tor + OS aleatório + perfil descartável"
+echo "  ./anonymous.sh https://site.com/signup               # URL direta"
+echo "  PROXY=none ./anonymous.sh                            # sem proxy (IP real, fingerprint trocado)"
+echo "  PROXY=socks5://vpn:1080 ./anonymous.sh               # VPN custom (Mullvad, ProtonVPN, etc.)"
+echo "  ANON_OS=macos ./anonymous.sh                        # força OS (sem aleatório)"
+echo "  KEEP=trabalho ./anonymous.sh https://gmail.com       # identidade persistente (OS fixado)"
+echo "  KEEP=pessoal ANON_OS=windows ./anonymous.sh         # cria identidade nova com OS específico"

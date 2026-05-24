@@ -1,16 +1,16 @@
 <p align="center">
-  <img src="logo.jpg" alt="ghost-browser" width="220"/>
+  <img src="logo.jpg" alt="anonymous-browser" width="220"/>
 </p>
 
-<h1 align="center">ghost-browser</h1>
+<h1 align="center">anonymous-browser</h1>
 
 > **Sua sessão. Seu IP. Seu fingerprint. Sua escolha.**
 >
 > Um navegador descartável, isolado, com IP rotacionado pelo Tor e fingerprint coerente trocado em nível C++. Linux (Debian/Arch/Fedora + Flatpak fallback) e macOS. Bash. Sem telemetria. Sem conta. Sem rastro.
 
 ```bash
-./install.sh   # uma vez
-./ghost.sh     # toda vez que você quiser uma identidade nova
+npm i -g anonymous-browser   # uma vez
+anonymous-browser            # toda vez que quiser uma identidade nova
 ```
 
 ---
@@ -26,7 +26,7 @@ A web de 2026 não te trata como visitante. Te trata como **target**. Cada `fetc
 
 Combinando esses sinais, um único site identifica você unicamente em **>99% das visitas** ([Panopticlick](https://amiunique.org), [FingerprintJS](https://fingerprint.com)). Cookie-clearing, modo anônimo e VPN básica resolvem **nenhum** dos vetores acima.
 
-**ghost-browser** é o oposto político disso: uma stack curta de scripts shell que monta, antes de cada sessão, uma máquina virtual de identidade — IP, fingerprint, locale, geo, timezone — coerente o suficiente pra passar em CreepJS com Trust >70% e descartável o suficiente pra desaparecer no `Ctrl+C`.
+**anonymous-browser** é o oposto político disso: uma stack curta de scripts shell que monta, antes de cada sessão, uma máquina virtual de identidade — IP, fingerprint, locale, geo, timezone — coerente o suficiente pra passar em CreepJS com Trust >70% e descartável o suficiente pra desaparecer no `Ctrl+C`.
 
 Isso não é furtar. Isso é **se recusar a pagar com seus dados** o pedágio que sites cobram pra te deixar entrar. É o mesmo princípio das listas de domínio do uBlock Origin, do Tor Project, do EFF Privacy Badger, do Mullvad VPN: na ausência de uma lei honesta de privacidade, você se defende sozinho.
 
@@ -38,13 +38,23 @@ Isso não é furtar. Isso é **se recusar a pagar com seus dados** o pedágio qu
 ## TL;DR
 
 ```bash
+# via npm (recomendado): instala um comando 'anonymous-browser' no seu PATH
+npm i -g anonymous-browser
+anonymous-browser
+```
+
+Na primeira execução o comando dispara `install.sh` automaticamente (instala Tor, libs nativas do Camoufox e o venv Python — pede sudo). Depois disso, cada execução pergunta se você quer um e-mail temporário descartável e abre o browser.
+
+Quer rodar do source sem npm?
+
+```bash
 git clone https://github.com/frederico-kluser/ghost-browser
 cd ghost-browser
 ./install.sh
-./ghost.sh
+./anonymous.sh
 ```
 
-`ghost.sh` te pergunta a URL, sorteia um OS pra spoofar (windows/macos/linux), força um novo circuito Tor, abre um Firefox-patched (Camoufox) com fingerprint coerente, **nega GPS silenciosamente** e apaga tudo (perfil temporário, browser, processo) no momento que você fecha o navegador, dá Ctrl+C ou fecha o terminal.
+`anonymous-browser` (ou `./anonymous.sh`) te pergunta a URL, sorteia um OS pra spoofar (windows/macos/linux), força um novo circuito Tor, abre um Firefox-patched (Camoufox) com fingerprint coerente, **nega GPS silenciosamente** e apaga tudo (perfil temporário, browser, processo) no momento que você fecha o navegador, dá Ctrl+C ou fecha o terminal.
 
 ---
 
@@ -61,7 +71,7 @@ cd ghost-browser
 | HTML5 Geolocation API | `firefox_user_prefs={"permissions.default.geo": 2}` → site recebe `PERMISSION_DENIED` sem prompt |
 | Botão "X" do navegador | `BrowserContext.wait_for_event("close")` → encerra script + apaga perfil |
 | Proxy / VPN customizado | env var `PROXY=socks5://...` sobrescreve Tor default; `PROXY=none` desliga proxy |
-| Identidade persistente | env var `KEEP=nome` salva perfil em `~/.ghost-browser/profiles/<nome>/` com OS fixado |
+| Identidade persistente | env var `KEEP=nome` salva perfil em `~/.anonymous-browser/profiles/<nome>/` com OS fixado |
 
 E o que **não** dá pra resolver com esta stack — sendo honesto:
 
@@ -72,6 +82,18 @@ E o que **não** dá pra resolver com esta stack — sendo honesto:
 ---
 
 ## Instalação
+
+### Via npm (recomendado)
+
+```bash
+npm i -g anonymous-browser
+```
+
+Isso instala um comando `anonymous-browser` no seu PATH. Na primeira execução, ele dispara `install.sh` automaticamente — instala Tor + libs nativas via `sudo` (Linux) ou `brew` (macOS), cria o venv Python e baixa o binário Camoufox.
+
+A cada execução depois disso, `anonymous-browser` pergunta se você quer um e-mail temporário descartável (`MAIL=1`) e abre o browser. Para pular o prompt, exporte `MAIL=0` ou `MAIL=1` antes.
+
+### Via clone (modo dev)
 
 `install.sh` detecta S.O. **e distro** automaticamente. Mesmo comando nas três famílias Linux principais e no macOS:
 
@@ -88,7 +110,7 @@ E o que **não** dá pra resolver com esta stack — sendo honesto:
 | Fedora | Fedora, Nobara, RHEL, Rocky, AlmaLinux | `dnf` |
 | macOS | macOS 13+ | `brew` (Homebrew obrigatório) |
 
-> Camoufox traz Firefox bundled — não há dependência de navegador do sistema. Em qualquer distro Linux com `tor`, `python3` e libs GTK/X11 básicas, o `ghost.sh` funciona.
+> Camoufox traz Firefox bundled — não há dependência de navegador do sistema. Em qualquer distro Linux com `tor`, `python3` e libs GTK/X11 básicas, o `anonymous.sh` funciona.
 
 ### Requisitos por S.O.
 
@@ -124,7 +146,7 @@ Reverter tudo:
 ./uninstall.sh
 ```
 
-Remove venv, cache do Camoufox (XDG no Linux ou `~/Library/Caches/camoufox` no macOS), perfis temporários, e pergunta antes de remover pacotes (só o que foi rastreado em `~/.cache/ghost-browser/installed-pkgs`). Se houver perfis persistentes em `~/.ghost-browser/profiles/`, também pergunta interativamente antes de apagá-los.
+Remove venv, cache do Camoufox (XDG no Linux ou `~/Library/Caches/camoufox` no macOS), perfis temporários, e pergunta antes de remover pacotes (só o que foi rastreado em `~/.cache/anonymous-browser/installed-pkgs`). Se houver perfis persistentes em `~/.anonymous-browser/profiles/`, também pergunta interativamente antes de apagá-los.
 
 ---
 
@@ -133,9 +155,9 @@ Remove venv, cache do Camoufox (XDG no Linux ou `~/Library/Caches/camoufox` no m
 ### Forma básica
 
 ```bash
-./ghost.sh                            # pergunta URL interativamente
-./ghost.sh https://site.com/signup    # one-liner
-./ghost.sh youtube.com                # esquema é opcional, prepende https://
+./anonymous.sh                            # pergunta URL interativamente
+./anonymous.sh https://site.com/signup    # one-liner
+./anonymous.sh youtube.com                # esquema é opcional, prepende https://
 ```
 
 Cada execução:
@@ -143,7 +165,7 @@ Cada execução:
 1. Detecta S.O. e inicia o Tor se ele estiver parado (`systemctl start tor` no Linux, `brew services start tor` no macOS).
 2. Força novo circuito Tor (`SIGNAL NEWNYM` se ControlPort estiver aberto, senão reload do serviço).
 3. Sorteia OS spoofado (`windows` | `macos` | `linux`).
-4. Cria perfil descartável em `$TMPDIR/ghost-XXXXXX` (`/tmp/...` no Linux, `/var/folders/.../ghost-...` no macOS).
+4. Cria perfil descartável em `$TMPDIR/anon-XXXXXX` (`/tmp/...` no Linux, `/var/folders/.../anon-...` no macOS).
 5. Abre Camoufox com fingerprint coerente + Tor + GPS negado silenciosamente.
 6. Bloqueia até você fechar o navegador.
 7. Apaga o perfil no exit (Ctrl+C, X do terminal, X do navegador, kill, crash — tudo).
@@ -152,33 +174,33 @@ Cada execução:
 
 ```bash
 # padrão: Tor + OS aleatório + perfil descartável
-./ghost.sh https://site.com
+./anonymous.sh https://site.com
 
 # usando VPN própria (Mullvad, ProtonVPN paga, qualquer SOCKS5/HTTP)
-PROXY=socks5://10.2.0.1:1080 ./ghost.sh
+PROXY=socks5://10.2.0.1:1080 ./anonymous.sh
 
 # sem proxy (IP real, mas fingerprint trocado) — útil para sites internos
-PROXY=none ./ghost.sh
+PROXY=none ./anonymous.sh
 
 # força um OS específico (sem aleatório)
-GHOST_OS=macos ./ghost.sh
+ANON_OS=macos ./anonymous.sh
 
 # identidade persistente "trabalho" (cookies + OS fixos entre sessões)
-KEEP=trabalho ./ghost.sh https://gmail.com
+KEEP=trabalho ./anonymous.sh https://gmail.com
 
 # cria identidade nova com OS escolhido manualmente
-KEEP=pessoal GHOST_OS=windows ./ghost.sh
+KEEP=pessoal ANON_OS=windows ./anonymous.sh
 
 # + e-mail descartável: imprime o endereço e mostra os e-mails
 #   recebidos em tempo real NO MESMO terminal (útil pra código de verificação)
-MAIL=1 ./ghost.sh https://site.com/signup
+MAIL=1 ./anonymous.sh https://site.com/signup
 
 # e-mail persistente junto da identidade persistente (mesmo endereço sempre)
-MAIL=1 KEEP=trabalho ./ghost.sh https://gmail.com
+MAIL=1 KEEP=trabalho ./anonymous.sh https://gmail.com
 
 # se o exit Tor estiver bloqueado pelo Cloudflare do mail.tm, manda só o
 # e-mail direto (o navegador continua via Tor):
-MAIL=1 GHOST_MAIL_PROXY=none ./ghost.sh https://site.com/signup
+MAIL=1 ANON_MAIL_PROXY=none ./anonymous.sh https://site.com/signup
 ```
 
 ### Variáveis de ambiente
@@ -186,33 +208,33 @@ MAIL=1 GHOST_MAIL_PROXY=none ./ghost.sh https://site.com/signup
 | Variável | Valores | Efeito |
 |---|---|---|
 | `PROXY` | `tor` (default) \| `none` \| `socks5://host:port` \| `http://host:port` \| `https://host:port` | Sobrescreve o proxy Tor padrão. `none` desliga proxy (usa IP real). |
-| `KEEP` | qualquer nome `[A-Za-z0-9_-]+` | Salva o perfil em `~/.ghost-browser/profiles/<nome>/`. OS é fixado na primeira vez. Sem `KEEP`, o perfil é descartado no fim. |
-| `GHOST_OS` | `windows` \| `macos` \| `linux` (aceita maiúsculas; é normalizado para lowercase) | Força um OS específico (sem sorteio). Combinado com `KEEP`, fixa o OS persistente. |
+| `KEEP` | qualquer nome `[A-Za-z0-9_-]+` | Salva o perfil em `~/.anonymous-browser/profiles/<nome>/`. OS é fixado na primeira vez. Sem `KEEP`, o perfil é descartado no fim. |
+| `ANON_OS` | `windows` \| `macos` \| `linux` (aceita maiúsculas; é normalizado para lowercase) | Força um OS específico (sem sorteio). Combinado com `KEEP`, fixa o OS persistente. |
 | `USE_TOR` (legado) | `0` | Alias de `PROXY=none`. Mantido por compat com docs antigas. |
 | `MAIL` | `1` | Gera um e-mail descartável (mail.tm) e mostra os recebidos em tempo real no mesmo terminal. Usa o mesmo `PROXY` e o mesmo perfil do navegador. Com `KEEP`, o endereço persiste entre sessões; sem `KEEP`, a conta é apagada no exit. |
-| `GHOST_MAIL_POLL` | segundos (default `5`, mínimo `2`) | Intervalo de checagem da caixa de entrada. |
-| `GHOST_MAIL_PROXY` | `tor` \| `none` \| `socks5://...` \| `http(s)://...` | Override de proxy **só pro e-mail** (o navegador segue no `PROXY`). Use `none` se o exit Tor estiver bloqueado pelo Cloudflare do mail.tm. |
+| `ANON_MAIL_POLL` | segundos (default `5`, mínimo `2`) | Intervalo de checagem da caixa de entrada. |
+| `ANON_MAIL_PROXY` | `tor` \| `none` \| `socks5://...` \| `http(s)://...` | Override de proxy **só pro e-mail** (o navegador segue no `PROXY`). Use `none` se o exit Tor estiver bloqueado pelo Cloudflare do mail.tm. |
 
 > **E-mail descartável (`MAIL=1`):** o endereço é criado no [mail.tm](https://mail.tm) — serviço **gratuito, sem API key e sem cadastro** (rate limit 8 req/s). _Inbox by mail.tm._ Como qualquer serviço de e-mail temporário, **não use para nada sensível**: as mensagens são públicas pra quem souber o endereço. Conta efêmera é deletada ao fechar o navegador / Ctrl+C.
 
-> **Tor × Cloudflare no mail.tm:** o `MAIL=1` roteia as chamadas pelo mesmo Tor do navegador (consistência de IP). Exit nodes Tor às vezes levam desafio do Cloudflare e a criação da caixa falha — o `ghost-mail.sh` avisa e segue **sem derrubar o navegador**. Soluções: `./new-tor-circuit.sh` (troca o exit) ou `MAIL=1 GHOST_MAIL_PROXY=none ./ghost.sh ...` (e-mail direto, navegador ainda via Tor).
+> **Tor × Cloudflare no mail.tm:** o `MAIL=1` roteia as chamadas pelo mesmo Tor do navegador (consistência de IP). Exit nodes Tor às vezes levam desafio do Cloudflare e a criação da caixa falha — o `anonymous-mail.sh` avisa e segue **sem derrubar o navegador**. Soluções: `./new-tor-circuit.sh` (troca o exit) ou `MAIL=1 ANON_MAIL_PROXY=none ./anonymous.sh ...` (e-mail direto, navegador ainda via Tor).
 
 > **Schemes de proxy aceitos:** `socks5://`, `http://`, `https://`. O Playwright (engine do Camoufox) não suporta `socks4://` oficialmente — usar `socks4://` resulta em erro do Camoufox.
 
-> **Privacidade com `PROXY=none`:** quando você desliga o proxy, o `ghost.sh` também desativa `geoip` automaticamente. Sem isso, Camoufox tentaria buscar seu IP real em `api.ipify.org` (ou fallback) para casar locale/timezone — o que vazaria o IP que você quer esconder. Trade-off: sem `geoip`, locale/timezone do Firefox podem não bater com sua região, mas seu IP real fica em casa.
+> **Privacidade com `PROXY=none`:** quando você desliga o proxy, o `anonymous.sh` também desativa `geoip` automaticamente. Sem isso, Camoufox tentaria buscar seu IP real em `api.ipify.org` (ou fallback) para casar locale/timezone — o que vazaria o IP que você quer esconder. Trade-off: sem `geoip`, locale/timezone do Firefox podem não bater com sua região, mas seu IP real fica em casa.
 
-> **Perfil persistente em paralelo:** Firefox usa um arquivo `parent.lock` dentro do `user_data_dir`. Rodar `KEEP=foo ./ghost.sh` duas vezes simultaneamente faz a segunda instância travar com timeout. Use nomes diferentes (`KEEP=foo` + `KEEP=bar`) para rodar em paralelo.
+> **Perfil persistente em paralelo:** Firefox usa um arquivo `parent.lock` dentro do `user_data_dir`. Rodar `KEEP=foo ./anonymous.sh` duas vezes simultaneamente faz a segunda instância travar com timeout. Use nomes diferentes (`KEEP=foo` + `KEEP=bar`) para rodar em paralelo.
 
 ### Helpers
 
-- **`./new-tor-circuit.sh`** — força IP novo entre execuções. Já é chamado pelo `ghost.sh` quando o proxy é Tor. Pra rodar standalone, abra `ControlPort 9051` no torrc (caminho depende do S.O. — Linux: `/etc/tor/torrc`; macOS: `$(brew --prefix)/etc/tor/torrc`). Veja a seção "Configuração do ControlPort do Tor" acima.
-- **`./ghost-mail.sh`** — e-mail descartável com leitura em tempo real, standalone (sem abrir navegador). Imprime o endereço e fica mostrando os e-mails recebidos. Aceita `PROXY`, `GHOST_MAIL_PROXY`, `GHOST_MAIL_POLL` e `KEEP` (endereço persistente, mesmo padrão de perfil do `ghost.sh`). Já é disparado automaticamente por `MAIL=1 ./ghost.sh`. _Inbox by mail.tm._
+- **`./new-tor-circuit.sh`** — força IP novo entre execuções. Já é chamado pelo `anonymous.sh` quando o proxy é Tor. Pra rodar standalone, abra `ControlPort 9051` no torrc (caminho depende do S.O. — Linux: `/etc/tor/torrc`; macOS: `$(brew --prefix)/etc/tor/torrc`). Veja a seção "Configuração do ControlPort do Tor" acima.
+- **`./anonymous-mail.sh`** — e-mail descartável com leitura em tempo real, standalone (sem abrir navegador). Imprime o endereço e fica mostrando os e-mails recebidos. Aceita `PROXY`, `ANON_MAIL_PROXY`, `ANON_MAIL_POLL` e `KEEP` (endereço persistente, mesmo padrão de perfil do `anonymous.sh`). Já é disparado automaticamente por `MAIL=1 ./anonymous.sh`. _Inbox by mail.tm._
 
 ---
 
 ## Validar que funcionou
 
-Abre essas URLs **dentro** da janela aberta pelo `ghost.sh`:
+Abre essas URLs **dentro** da janela aberta pelo `anonymous.sh`:
 
 | Site | O que checar |
 |---|---|
@@ -234,9 +256,9 @@ curl -s --socks5-hostname 127.0.0.1:9050 https://check.torproject.org/api/ip
 
 ---
 
-## Comparação: ghost-browser vs Tor Browser
+## Comparação: anonymous-browser vs Tor Browser
 
-| | `ghost-browser` (este repo) | Tor Browser oficial |
+| | `anonymous-browser` (este repo) | Tor Browser oficial |
 |---|---|---|
 | Engine | Camoufox (Firefox patched em C++) | Firefox ESR + patches Tor |
 | Filosofia | Você finge ser outro device | Você se uniformiza com todo mundo |
@@ -251,14 +273,14 @@ curl -s --socks5-hostname 127.0.0.1:9050 https://check.torproject.org/api/ip
 | Passa em CreepJS | ✅ Trust >70% típico | ✅ Trust ~80% (homogêneo) |
 | Dependências | apt + venv (~300 MB) | bundle pronto |
 
-**Use `ghost.sh`** quando quiser **identidade trocada** (parecer outra pessoa específica, com cookies/sessão controláveis). Use **Tor Browser** quando quiser **anonimato uniforme** (se misturar com a multidão, sem variação entre você e os outros usuários).
+**Use `anonymous.sh`** quando quiser **identidade trocada** (parecer outra pessoa específica, com cookies/sessão controláveis). Use **Tor Browser** quando quiser **anonimato uniforme** (se misturar com a multidão, sem variação entre você e os outros usuários).
 
 ---
 
 ## Estrutura
 
 ```
-ghost-browser/
+anonymous-browser/
 ├── README.md              # este arquivo
 ├── FIXES.md               # histórico de bugs corrigidos (todos fechados)
 ├── LICENSE                # MIT
@@ -267,17 +289,17 @@ ghost-browser/
 ├── install.sh             # auto-detecta S.O. + distro Linux (Debian/Arch/Fedora);
 │                          # instala Tor, libs Camoufox, venv Python; resumo [+]/[=]/[!] no fim
 ├── uninstall.sh           # remove venv/cache/perfis; pergunta antes de remover pacotes;
-│                          # também pergunta antes de apagar perfis persistentes em ~/.ghost-browser/
-├── ghost.sh               # ★ super-comando: PROXY/KEEP/GHOST_OS via env, Camoufox+Tor por default
+│                          # também pergunta antes de apagar perfis persistentes em ~/.anonymous-browser/
+├── anonymous.sh               # ★ super-comando: PROXY/KEEP/ANON_OS via env, Camoufox+Tor por default
 ├── new-tor-circuit.sh     # força SIGNAL NEWNYM (ControlPort 9051) ou reload do serviço
-├── ghost-mail.sh          # e-mail descartável (mail.tm) + leitura em tempo real no terminal
+├── anonymous-mail.sh          # e-mail descartável (mail.tm) + leitura em tempo real no terminal
 └── lib/platform.sh        # detecção de S.O. + distro + dispatch de package manager
                            # (apt/pacman/dnf/brew); bash 3.2 portable
 
 # estado (não versionado):
-~/.ghost-browser/profiles/  # perfis persistentes criados por KEEP=nome
+~/.anonymous-browser/profiles/  # perfis persistentes criados por KEEP=nome
 ~/.camoufox-venv/           # venv com Camoufox + BrowserForge + GeoIP
-~/.cache/ghost-browser/     # track-file de pacotes instalados pelo install.sh
+~/.cache/anonymous-browser/     # track-file de pacotes instalados pelo install.sh
 ```
 
 ---
@@ -285,7 +307,7 @@ ghost-browser/
 ## Limitações & honestidade
 
 1. **Não é silver bullet.** Anti-bot enterprise (Cloudflare BM, DataDome) detecta Camoufox via TLS/HTTP-2 fingerprint. Esta stack mira tracking publicitário e cadastros normais — não nações-estado, não Akamai-fronted login flows.
-2. **Tor é lento.** Em média 5–15s pra primeira requisição. Cloudflare desafia exit nodes. Se um site bloquear, troque por VPN própria: `PROXY=socks5://seu-vpn:1080 ./ghost.sh`.
+2. **Tor é lento.** Em média 5–15s pra primeira requisição. Cloudflare desafia exit nodes. Se um site bloquear, troque por VPN própria: `PROXY=socks5://seu-vpn:1080 ./anonymous.sh`.
 3. **User-Agents envelhecem.** O Camoufox/BrowserForge atualizam UAs automaticamente. Pra puxar o dataset mais recente: `source ~/.camoufox-venv/bin/activate && python -m camoufox fetch`.
 4. **Mullvad Browser e Tor Browser homogeneízam, não personificam.** Útil pra ler anonimamente, inútil pra cadastrar como "outro alguém".
 5. **WebRTC permanece bloqueado pelo Camoufox** (`block_webrtc=True`) mesmo com `PROXY=none`, mas DNS lookups vão pelo seu resolver local — sua máquina aparece como Linux normal para o ISP nesse modo.
@@ -301,10 +323,10 @@ Firefox deixa um `parent.lock` (e/ou `.parentlock`) dentro do `user_data_dir`. S
 
 ```bash
 # checar
-ls -la ~/.ghost-browser/profiles/<nome>/ | grep -i lock
-# limpar (com o ghost.sh fechado)
-rm -f ~/.ghost-browser/profiles/<nome>/parent.lock \
-      ~/.ghost-browser/profiles/<nome>/.parentlock
+ls -la ~/.anonymous-browser/profiles/<nome>/ | grep -i lock
+# limpar (com o anonymous.sh fechado)
+rm -f ~/.anonymous-browser/profiles/<nome>/parent.lock \
+      ~/.anonymous-browser/profiles/<nome>/.parentlock
 ```
 
 ### Tor não sobe / `[!] Tor não responde em 127.0.0.1:9050`
@@ -320,7 +342,7 @@ brew services info tor
 brew services restart tor
 ```
 
-Se o ISP está bloqueando Tor, use `PROXY=socks5://seu-vpn:1080 ./ghost.sh` com uma VPN.
+Se o ISP está bloqueando Tor, use `PROXY=socks5://seu-vpn:1080 ./anonymous.sh` com uma VPN.
 
 ### `[!] PROXY inválido` mas o valor parece correto
 

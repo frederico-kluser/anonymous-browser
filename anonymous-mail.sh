@@ -1,27 +1,27 @@
 #!/usr/bin/env bash
-# ghost-mail.sh — e-mail descartável aleatório com leitura em tempo real
+# anonymous-mail.sh — e-mail descartável aleatório com leitura em tempo real
 #
 # Cria (ou recarrega) uma conta de e-mail temporária no mail.tm — serviço
 # gratuito, sem API key e sem cadastro — imprime o endereço e fica observando
 # a caixa de entrada, mostrando cada mensagem nova no MESMO terminal em tempo
-# real (polling). Casa com a filosofia do ghost-browser: identidade efêmera
+# real (polling). Casa com a filosofia do anonymous-browser: identidade efêmera
 # (perfil descartável => conta apagada ao sair).
 #
-# Roda sozinho OU é disparado por `MAIL=1 ./ghost.sh <url>` (que reaproveita
+# Roda sozinho OU é disparado por `MAIL=1 ./anonymous.sh <url>` (que reaproveita
 # o mesmo proxy/Tor e o mesmo diretório de perfil do navegador).
 #
 # Uso:
-#   ./ghost-mail.sh                         # endereço efêmero (apaga ao sair)
-#   KEEP=trabalho ./ghost-mail.sh           # endereço persistente (mesmo padrão de ghost.sh)
-#   ./ghost-mail.sh /caminho/do/perfil      # guarda credenciais nesse diretório
+#   ./anonymous-mail.sh                         # endereço efêmero (apaga ao sair)
+#   KEEP=trabalho ./anonymous-mail.sh           # endereço persistente (mesmo padrão de anonymous.sh)
+#   ./anonymous-mail.sh /caminho/do/perfil      # guarda credenciais nesse diretório
 #
 # Env vars (todas opcionais):
 #   PROXY            tor (default) | none | socks5://h:p | http://h:p | https://h:p
-#                    (mesmo formato de ghost.sh — chamadas ao mail.tm passam por aqui)
-#   GHOST_MAIL_PROXY override só pro e-mail (ex.: GHOST_MAIL_PROXY=none se o
+#                    (mesmo formato de anonymous.sh — chamadas ao mail.tm passam por aqui)
+#   ANON_MAIL_PROXY override só pro e-mail (ex.: ANON_MAIL_PROXY=none se o
 #                    exit node Tor estiver bloqueado pelo Cloudflare do mail.tm)
-#   GHOST_MAIL_POLL  intervalo de polling em segundos (default 5; mínimo 2)
-#   KEEP             nome do perfil persistente (~/.ghost-browser/profiles/<nome>/)
+#   ANON_MAIL_POLL  intervalo de polling em segundos (default 5; mínimo 2)
+#   KEEP             nome do perfil persistente (~/.anonymous-browser/profiles/<nome>/)
 #
 # Inbox by mail.tm (https://mail.tm) — atribuição exigida pelos termos do serviço.
 #
@@ -57,14 +57,14 @@ for bin in curl jq; do
 done
 
 # -------- resolve perfil (onde guardar credenciais) + efemeridade --------
-# Precedência: GHOST_MAIL_PROFILE (vindo de ghost.sh) > $1 > KEEP > tmp.
+# Precedência: ANON_MAIL_PROFILE (vindo de anonymous.sh) > $1 > KEEP > tmp.
 PROFILE_DIR=""
 PERSISTENT=0
 OWNS_TMPDIR=0
 
-if [[ -n "${GHOST_MAIL_PROFILE:-}" ]]; then
-    PROFILE_DIR="$GHOST_MAIL_PROFILE"
-    PERSISTENT="${GHOST_MAIL_PERSISTENT:-0}"
+if [[ -n "${ANON_MAIL_PROFILE:-}" ]]; then
+    PROFILE_DIR="$ANON_MAIL_PROFILE"
+    PERSISTENT="${ANON_MAIL_PERSISTENT:-0}"
 elif [[ -n "${1:-}" ]]; then
     PROFILE_DIR="$1"
     PERSISTENT=1
@@ -73,17 +73,17 @@ elif [[ -n "${KEEP:-}" ]]; then
         err "KEEP inválido: '$KEEP' (use só letras, números, '_' e '-')"
         exit 1
     fi
-    PROFILE_DIR="$HOME/.ghost-browser/profiles/$KEEP"
+    PROFILE_DIR="$HOME/.anonymous-browser/profiles/$KEEP"
     PERSISTENT=1
 else
-    PROFILE_DIR="$(mktemp -d "$(ghost_tmp_prefix)/ghost-mail-XXXXXX")"
+    PROFILE_DIR="$(mktemp -d "$(anon_tmp_prefix)/anon-mail-XXXXXX")"
     PERSISTENT=0
     OWNS_TMPDIR=1
 fi
 mkdir -p "$PROFILE_DIR"
-CRED_FILE="$PROFILE_DIR/.ghost-mail"
+CRED_FILE="$PROFILE_DIR/.anon-mail"
 
-# -------- resolve proxy (mesmo case de ghost.sh) --------
+# -------- resolve proxy (mesmo case de anonymous.sh) --------
 resolve_proxy_url() {
     case "${1:-}" in
         ""|tor)                   printf 'socks5://127.0.0.1:9050\n' ;;
@@ -93,13 +93,13 @@ resolve_proxy_url() {
     esac
 }
 
-if [[ -n "${GHOST_MAIL_PROXY:-}" ]]; then
-    PROXY_SRC="GHOST_MAIL_PROXY"
-    PROXY_URL="$(resolve_proxy_url "$GHOST_MAIL_PROXY")" \
-        || { err "GHOST_MAIL_PROXY inválido: '$GHOST_MAIL_PROXY'"; exit 1; }
-elif [[ "${GHOST_PROXY_RESOLVED:-0}" == "1" ]]; then
-    PROXY_SRC="ghost.sh"
-    PROXY_URL="${GHOST_PROXY_URL:-}"
+if [[ -n "${ANON_MAIL_PROXY:-}" ]]; then
+    PROXY_SRC="ANON_MAIL_PROXY"
+    PROXY_URL="$(resolve_proxy_url "$ANON_MAIL_PROXY")" \
+        || { err "ANON_MAIL_PROXY inválido: '$ANON_MAIL_PROXY'"; exit 1; }
+elif [[ "${ANON_PROXY_RESOLVED:-0}" == "1" ]]; then
+    PROXY_SRC="anonymous.sh"
+    PROXY_URL="${ANON_PROXY_URL:-}"
 else
     PROXY_SRC="PROXY"
     PROXY_URL="$(resolve_proxy_url "${PROXY:-}")" \
@@ -109,7 +109,7 @@ fi
 CURL_PROXY_ARGS=()
 while IFS= read -r line; do
     [[ -n "$line" ]] && CURL_PROXY_ARGS+=("$line")
-done < <(ghost_curl_proxy_args "$PROXY_URL" || true)
+done < <(anon_curl_proxy_args "$PROXY_URL" || true)
 PROXY_LABEL="${PROXY_URL:-direto (sem proxy)}"
 
 # -------- HTTP helper: popula RESP_BODY / RESP_CODE --------
@@ -190,8 +190,8 @@ provision_failed() {
     if [[ -n "$PROXY_URL" ]]; then
         warn "Provável bloqueio/Cloudflare no exit node ($PROXY_LABEL via $PROXY_SRC)."
         warn "Tente trocar de circuito:  ./new-tor-circuit.sh"
-        warn "Ou mande só o e-mail direto: GHOST_MAIL_PROXY=none $0"
-        warn "(no fluxo integrado:  MAIL=1 GHOST_MAIL_PROXY=none ./ghost.sh <url>)"
+        warn "Ou mande só o e-mail direto: ANON_MAIL_PROXY=none $0"
+        warn "(no fluxo integrado:  MAIL=1 ANON_MAIL_PROXY=none ./anonymous.sh <url>)"
     else
         warn "Sem conexão com api.mail.tm? Confira a rede e tente de novo."
     fi
@@ -210,7 +210,7 @@ provision_fresh() {
 
     local body
     for _ in 1 2 3 4 5; do
-        ADDRESS="ghost$(rand_str 12)@$domain"
+        ADDRESS="anon$(rand_str 12)@$domain"
         PASSWORD="$(rand_str 24)"
         body="$(jq -nc --arg a "$ADDRESS" --arg p "$PASSWORD" \
             '{address:$a,password:$p}')"
@@ -246,7 +246,7 @@ cleanup() {
     local rc=$?
     if [[ "$CLEANED" -eq 1 ]]; then exit "$rc"; fi
     CLEANED=1
-    # Interrompe o nap pendente pra encerrar na hora (ghost.sh dá kill+wait).
+    # Interrompe o nap pendente pra encerrar na hora (anonymous.sh dá kill+wait).
     if [[ -n "$SLEEP_PID" ]]; then
         kill "$SLEEP_PID" 2>/dev/null || true
     fi
@@ -276,13 +276,13 @@ fi
 banner
 
 # -------- loop de polling em tempo real --------
-POLL="${GHOST_MAIL_POLL:-5}"
+POLL="${ANON_MAIL_POLL:-5}"
 [[ "$POLL" =~ ^[0-9]+$ && "$POLL" -ge 2 ]] || POLL=5
 SEEN=$'\n'
 
 # Sleep interrompível: roda em background e dá `wait` — assim um sinal
 # (INT/TERM/HUP) dispara o trap NA HORA, sem esperar o sleep terminar.
-# Sem isso, fechar o navegador faria o ghost.sh travar até POLL segundos.
+# Sem isso, fechar o navegador faria o anonymous.sh travar até POLL segundos.
 nap() {
     sleep "$1" &
     SLEEP_PID=$!
