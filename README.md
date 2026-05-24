@@ -48,7 +48,7 @@ Na primeira execução o comando dispara `install.sh` automaticamente (instala T
 Quer rodar do source sem npm?
 
 ```bash
-git clone https://github.com/frederico-kluser/ghost-browser
+git clone https://github.com/frederico-kluser/anonymous-browser
 cd ghost-browser
 ./install.sh
 ./anonymous.sh

@@ -35,12 +35,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/frederico-kluser/ghost-browser.git"
+    "url": "git+https://github.com/frederico-kluser/anonymous-browser.git"
   },
   "bugs": {
-    "url": "https://github.com/frederico-kluser/ghost-browser/issues"
+    "url": "https://github.com/frederico-kluser/anonymous-browser/issues"
   },
-  "homepage": "https://github.com/frederico-kluser/ghost-browser#readme",
+  "homepage": "https://github.com/frederico-kluser/anonymous-browser#readme",
   "engines": {
     "node": ">=14"
   },
