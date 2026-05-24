@@ -222,6 +222,13 @@ fi
 # Cria um comando único 'ghost-browser' no PATH do usuário. Quando executado,
 # pergunta se quer e-mail temporário (MAIL=1) e dispara ghost.sh aqui no repo.
 # Sem sudo: ~/.local/bin é XDG padrão e a maioria das distros já o coloca no PATH.
+#
+# Quando install.sh roda via `npm i -g ghost-browser`, o launcher Node
+# (bin/ghost-browser.js) seta GHOST_SKIP_WRAPPER=1 — npm já fornece o binário
+# global, então pular daqui evita ter dois 'ghost-browser' em PATH.
+if [[ "${GHOST_SKIP_WRAPPER:-0}" == "1" ]]; then
+    info "GHOST_SKIP_WRAPPER=1 — pulando wrapper local (npm já forneceu o comando global)."
+else
 WRAPPER_DIR="$HOME/.local/bin"
 WRAPPER_PATH="$WRAPPER_DIR/ghost-browser"
 
@@ -282,6 +289,7 @@ case ":$PATH:" in
         warn "  Depois reabra o terminal e rode: ghost-browser"
         ;;
 esac
+fi  # GHOST_SKIP_WRAPPER
 
 # -------- 5. resumo final --------
 echo

@@ -1,0 +1,50 @@
+{
+  "name": "ghost-browser",
+  "version": "0.1.0",
+  "description": "Disposable, fingerprint-rotating browser via Tor (Camoufox-based) with optional real-time disposable email — Linux + macOS.",
+  "bin": {
+    "ghost-browser": "bin/ghost-browser.js"
+  },
+  "scripts": {
+    "postinstall": "node bin/postinstall.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "ghost.sh",
+    "ghost-mail.sh",
+    "install.sh",
+    "new-tor-circuit.sh",
+    "uninstall.sh",
+    "README.md",
+    "LICENSE",
+    "logo.jpg"
+  ],
+  "keywords": [
+    "browser",
+    "tor",
+    "privacy",
+    "anonymity",
+    "fingerprint",
+    "camoufox",
+    "disposable",
+    "anti-fingerprinting"
+  ],
+  "author": "Frederico Kluser",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/frederico-kluser/ghost-browser.git"
+  },
+  "bugs": {
+    "url": "https://github.com/frederico-kluser/ghost-browser/issues"
+  },
+  "homepage": "https://github.com/frederico-kluser/ghost-browser#readme",
+  "engines": {
+    "node": ">=14"
+  },
+  "os": [
+    "linux",
+    "darwin"
+  ]
+}
