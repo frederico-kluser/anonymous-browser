@@ -1,0 +1,5 @@
+# Dependências Python do anonymous-browser
+# Pinning de Camoufox: minor version range. Major 0.5+ pode trazer breaking
+# changes (Camoufox 0.4.11 já quebrou o projeto uma vez — veja FIXES.md).
+# Atualize manualmente após validar o changelog do upstream.
+camoufox[geoip]>=0.4.11,<0.5.0

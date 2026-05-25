@@ -35,6 +35,28 @@ source "$SCRIPT_DIR/lib/platform.sh"
 
 VENV="$HOME/.camoufox-venv"
 
+GREEN='\033[0;32m'; YELLOW='\033[0;33m'; RED='\033[0;31m'; NC='\033[0m'
+warn() { echo -e "${YELLOW}[!]${NC} $*"; }
+err()  { echo -e "${RED}[x]${NC} $*"; }
+
+# Inteiro uniforme em [0, max-1] via /dev/urandom.
+# Bash $RANDOM tem só 15 bits e PRNG seedável previsivelmente; aqui sorteamos
+# OS spoofado, então usar a mesma fonte de entropia do resto do projeto.
+rand_int() {
+    local max="$1"
+    local n
+    n="$(od -An -N4 -tu4 < /dev/urandom | tr -d ' ')"
+    echo $(( n % max ))
+}
+
+# First-party isolation: opcional, isola cookies/storage por origem top-level.
+# Trade-off: quebra "login com Google" cross-site (que pra essa stack é feature).
+if [[ "${FIRSTPARTY_ISOLATE:-0}" == "1" ]]; then
+    export ANON_FIRSTPARTY_ISOLATE=1
+else
+    export ANON_FIRSTPARTY_ISOLATE=0
+fi
+
 # -------- cleanup robusto: INT, TERM, HUP, EXIT --------
 TMP=""
 PERSISTENT=0
@@ -141,7 +163,7 @@ elif [[ -n "$OS_FILE" && -s "$OS_FILE" ]]; then
     esac
     OS_SOURCE="persistido em $OS_FILE"
 else
-    OS_RAND="${OS_LIST[$((RANDOM % ${#OS_LIST[@]}))]}"
+    OS_RAND="${OS_LIST[$(rand_int ${#OS_LIST[@]})]}"
     OS_SOURCE="aleatório"
     if [[ -n "$OS_FILE" ]]; then
         printf '%s\n' "$OS_RAND" > "$OS_FILE"
@@ -173,9 +195,27 @@ if [[ ! "$URL" =~ ^https?:// ]]; then
 fi
 
 # -------- novo circuito Tor (só se Tor) --------
+# new-tor-circuit.sh devolve 0=NEWNYM ok, 1=HUP fallback, 2=falhou.
+# STRICT_CIRCUIT=1 aborta a sessão se NEWNYM não funcionou — usar quando
+# qualquer reuso de circuito é inaceitável (ex: investigação forense
+# sensível a IP de saída).
 if [[ "$USE_TOR_INTERNAL" -eq 1 ]]; then
     echo "[anon] forçando novo circuito Tor..."
-    "$SCRIPT_DIR/new-tor-circuit.sh" || true
+    set +e
+    "$SCRIPT_DIR/new-tor-circuit.sh"
+    CIRCUIT_RC=$?
+    set -e
+    case "$CIRCUIT_RC" in
+        0) ;;  # confirmado
+        1) warn "circuito renovado via HUP fallback (ControlPort indisponível)." ;;
+        *)
+            err "falha ao renovar circuito Tor — continuando com circuito atual."
+            if [[ "${STRICT_CIRCUIT:-0}" == "1" ]]; then
+                err "STRICT_CIRCUIT=1: abortando."
+                exit 1
+            fi
+            ;;
+    esac
 fi
 
 # -------- resolve IP de saída para geoip (não delega ao Camoufox) --------
@@ -260,6 +300,7 @@ fi
 source "$VENV/bin/activate"
 
 python - <<PY
+import os
 import signal, sys
 from camoufox.sync_api import Camoufox
 from browserforge.fingerprints import Screen
@@ -296,6 +337,68 @@ else:
 
 print(f"[anon] abrindo Camoufox como '{OS_ARG}' -> {URL}")
 
+# Defaults defensivos explícitos: não confiar só nos defaults do Camoufox.
+# Cada pref é uma defesa em profundidade contra um vetor específico — se
+# Camoufox upstream regredir, ainda estamos cobertos.
+firefox_user_prefs = {
+    # Geo: negar sem prompt (prompt em si já é fingerprint).
+    "permissions.default.geo": 2,
+    "geo.enabled": False,
+
+    # WebRTC: stack inteira off, não só block_webrtc do Camoufox.
+    "media.peerconnection.enabled": False,
+    "media.peerconnection.ice.default_address_only": True,
+    "media.peerconnection.ice.no_host": True,
+
+    # DNS: sempre via proxy, nunca DoH (que vaza pra Cloudflare/Google).
+    "network.proxy.socks_remote_dns": True,
+    "network.trr.mode": 5,  # DoH explicitamente off
+    "network.dns.disablePrefetch": True,
+    "network.dns.disablePrefetchFromHTTPS": True,
+    "network.predictor.enabled": False,
+    "network.prefetch-next": False,
+
+    # Safebrowsing: round-trip pra Mozilla/Google a cada page load.
+    "browser.safebrowsing.malware.enabled": False,
+    "browser.safebrowsing.phishing.enabled": False,
+    "browser.safebrowsing.downloads.enabled": False,
+    "browser.safebrowsing.downloads.remote.enabled": False,
+
+    # APIs de hardware: reduz superfície de fingerprint.
+    "dom.battery.enabled": False,
+    "dom.gamepad.enabled": False,
+    "dom.vr.enabled": False,
+
+    # Vazamento por digitação na urlbar (autocomplete envia pra search engine).
+    "browser.search.suggest.enabled": False,
+    "browser.urlbar.suggest.searches": False,
+    "browser.urlbar.suggest.history": False,
+    "browser.urlbar.suggest.bookmark": False,
+    "browser.urlbar.speculativeConnect.enabled": False,
+
+    # Telemetria Mozilla.
+    "toolkit.telemetry.enabled": False,
+    "toolkit.telemetry.unified": False,
+    "toolkit.telemetry.archive.enabled": False,
+    "datareporting.healthreport.uploadEnabled": False,
+    "datareporting.policy.dataSubmissionEnabled": False,
+    "app.shield.optoutstudies.enabled": False,
+
+    # Captive portal / connectivity service: requests periódicos pra Mozilla.
+    "network.captive-portal-service.enabled": False,
+    "network.connectivity-service.enabled": False,
+
+    # Push notifications: desnecessárias em sessão descartável.
+    "dom.push.enabled": False,
+    "dom.webnotifications.enabled": False,
+}
+
+if os.environ.get("ANON_FIRSTPARTY_ISOLATE") == "1":
+    firefox_user_prefs.update({
+        "privacy.firstparty.isolate": True,
+        "privacy.firstparty.isolate.restrict_opener_access": True,
+    })
+
 with Camoufox(
     os=OS_ARG,
     headless=False,
@@ -308,8 +411,7 @@ with Camoufox(
     # Sem isso, Playwright reclama: "launch() got unexpected kwarg user_data_dir".
     # Cleanup permanece: bash trap apaga $TMP se PERSISTENT=0.
     persistent_context=True,
-    # 0=prompt, 1=allow, 2=deny — nega GPS sem mostrar prompt no site
-    firefox_user_prefs={"permissions.default.geo": 2},
+    firefox_user_prefs=firefox_user_prefs,
 ) as browser:
     # persistent_context=True devolve BrowserContext (não Browser).
     # BrowserContext.new_page() existe normalmente em Playwright.

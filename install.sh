@@ -177,11 +177,11 @@ fi
 # shellcheck source=/dev/null
 source "$VENV/bin/activate"
 pip install --upgrade pip
-info "Instalando/atualizando camoufox[geoip]..."
-if pip install -U "camoufox[geoip]"; then
+info "Instalando/atualizando camoufox[geoip] (pinning de requirements.txt)..."
+if pip install -r "$SCRIPT_DIR/requirements.txt"; then
     INSTALLED+=("pip: camoufox[geoip] instalado/atualizado")
 else
-    FAILED+=("pip: 'camoufox[geoip]' falhou")
+    FAILED+=("pip: instalação de requirements.txt falhou")
 fi
 
 info "Baixando binário Camoufox + dataset GeoIP (pode levar ~3min, ~300MB)..."
@@ -190,6 +190,10 @@ if python -m camoufox fetch; then
 else
     FAILED+=("camoufox: 'python -m camoufox fetch' falhou (binário ou GeoIP não baixou)")
 fi
+
+# Reporta a versão exata instalada pra rastreabilidade em bug reports.
+CAMOUFOX_VER="$(python -c 'import importlib.metadata as m; print(m.version("camoufox"))' 2>/dev/null || echo unknown)"
+info "Camoufox instalado: $CAMOUFOX_VER"
 deactivate
 
 # -------- 4. validação final --------

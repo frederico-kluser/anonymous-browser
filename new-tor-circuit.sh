@@ -47,12 +47,31 @@ info "IP atual via Tor: $OLD_IP"
 
 # -------- Caminho rápido: ControlPort --------
 # Usa nc -z em vez de /dev/tcp porque o bash 3.2 do macOS não suporta /dev/tcp.
+#
+# Exit codes:
+#   0 = NEWNYM confirmado (ControlPort respondeu 250 OK)
+#   1 = HUP/reload fallback usado (sem confirmação de NEWNYM)
+#   2 = nada funcionou (NEWNYM falhou e reload também)
+CIRCUIT_RC=2
 if anon_port_open 127.0.0.1 9051; then
     info "ControlPort 9051 aberta — enviando SIGNAL NEWNYM..."
-    printf 'AUTHENTICATE ""\r\nSIGNAL NEWNYM\r\nQUIT\r\n' | nc 127.0.0.1 9051 || true
+    # Captura resposta do controlport pra confirmar "250 OK".
+    CTRL_RESP="$(printf 'AUTHENTICATE ""\r\nSIGNAL NEWNYM\r\nQUIT\r\n' \
+        | nc -w 5 127.0.0.1 9051 2>/dev/null || true)"
+    if printf '%s' "$CTRL_RESP" | grep -q '^250 '; then
+        CIRCUIT_RC=0
+        info "NEWNYM aceito pelo Tor."
+    else
+        warn "ControlPort aberta mas NEWNYM não confirmado — tentando reload."
+        if anon_service_reload tor 2>/dev/null; then
+            CIRCUIT_RC=1
+        fi
+    fi
 else
     warn "ControlPort 9051 fechada — fazendo fallback para reload do serviço Tor (mais lento)."
-    anon_service_reload tor
+    if anon_service_reload tor 2>/dev/null; then
+        CIRCUIT_RC=1
+    fi
 fi
 
 # Tor leva alguns segundos para fechar circuitos antigos e abrir novo
@@ -66,3 +85,5 @@ if [[ "$OLD_IP" == "$NEW_IP" ]]; then
     warn "O IP não mudou. Tor reutiliza circuitos para o mesmo destino por ~10min."
     warn "Tente novamente em alguns segundos, ou reinicie o tor pelo seu init system."
 fi
+
+exit "$CIRCUIT_RC"

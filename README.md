@@ -4,6 +4,13 @@
 
 <h1 align="center">anonymous-browser</h1>
 
+<p align="center">
+  <a href="https://www.npmjs.com/package/anonymous-browser"><img src="https://img.shields.io/npm/v/anonymous-browser.svg" alt="npm version"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"/></a>
+  <a href="https://github.com/frederico-kluser/anonymous-browser/actions"><img src="https://github.com/frederico-kluser/anonymous-browser/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
+  <a href="https://github.com/daijro/camoufox"><img src="https://img.shields.io/badge/Camoufox-0.4.x-orange" alt="Camoufox"/></a>
+</p>
+
 > **Sua sessão. Seu IP. Seu fingerprint. Sua escolha.**
 >
 > Um navegador descartável, isolado, com IP rotacionado pelo Tor e fingerprint coerente trocado em nível C++. Linux (Debian/Arch/Fedora + Flatpak fallback) e macOS. Bash. Sem telemetria. Sem conta. Sem rastro.
@@ -49,12 +56,46 @@ Quer rodar do source sem npm?
 
 ```bash
 git clone https://github.com/frederico-kluser/anonymous-browser
-cd ghost-browser
+cd anonymous-browser
 ./install.sh
 ./anonymous.sh
 ```
 
 `anonymous-browser` (ou `./anonymous.sh`) te pergunta a URL, sorteia um OS pra spoofar (windows/macos/linux), força um novo circuito Tor, abre um Firefox-patched (Camoufox) com fingerprint coerente, **nega GPS silenciosamente** e apaga tudo (perfil temporário, browser, processo) no momento que você fecha o navegador, dá Ctrl+C ou fecha o terminal.
+
+---
+
+## ⚠️ O que ESTE projeto NÃO protege contra
+
+Honestidade antes de marketing. Esta stack **não é safe** nestes cenários — não importa o que você leia em outros lugares:
+
+- **`mail.tm` (provider de e-mail descartável)**: operadores do serviço veem **todos** os e-mails que chegarem. Não há criptografia at-rest declarada. Use **apenas** para OTPs/links de sites que você não confiaria com nenhum dado pessoal. Para qualquer coisa sensível, suba seu próprio SMTP (a partir de `0.2.2`, suporte planejado a `MAIL_PROVIDER=custom`).
+- **IPs de exit Tor são datacenter conhecido**: anti-fraud da Stripe, Adyen, qualquer gateway de pagamento sério detecta. Cadastros que envolvam cartão de crédito vão ser bloqueados.
+- **TLS JA3/JA4 ainda é o de Firefox real (estoque)**: Akamai Bot Manager, Cloudflare Enterprise, DataDome, PerimeterX e Kasada veem isso. Camoufox melhora a camada JavaScript, **não** a camada TLS.
+- **Behavioral fingerprinting não tratado**: cadência de digitação, mouse path, dwell time. Camoufox tem `humanize=True` mas é placebo contra ML moderno.
+- **Login em conta pessoal queima identidade instantaneamente**: cookies, OAuth, "login com Google" amarram a sessão à sua identidade real. Anonimato é uma propriedade da sessão **inteira**, não do browser.
+- **Adversário com root local** (malware, parental control corporativo, root cert instalado) vê tudo.
+- **Cloudflare Workers + Bot Score**: se o site usa Bot Management Enterprise tier, você vai ser flag.
+
+Se seu threat model envolve qualquer um dos itens acima, use **[Tor Browser](https://www.torproject.org/) + [Tails OS](https://tails.net/)** em vez deste projeto.
+
+## 🎯 Threat Model
+
+**Para QUE casos este projeto é safe:**
+
+- Anti-tracking publicitário (cookies cross-site, fingerprint persistente)
+- Cadastros casuais em fóruns, plataformas indie, sites de e-commerce pequeno
+- Multi-account em redes sociais sem anti-fraud ML forte (Reddit, Hacker News, IRC bouncers, mastodon)
+- Pesquisa OSINT em alvos comuns (sem CAPTCHA enterprise no caminho)
+- Bypass de geo-blocking básico (Netflix vai pegar — eles têm CDN MaxMind tier 1)
+
+**Para QUE casos NÃO é safe:**
+
+- Dissidência sob estado adversarial (Rússia, Irã, China, etc) — use **Tails** + **Tor Browser**, não esta stack.
+- Bypass de Cloudflare Enterprise / DataDome / Akamai Bot Manager — pague Multilogin/Kameleo (fora do escopo deste projeto open-source).
+- Qualquer fluxo financeiro com anti-fraud sério (Stripe Radar, Adyen RevenueProtect).
+- Substituir VPN para streaming Netflix/Disney+/Spotify — os exits Tor são banidos.
+- Substituir um threat model real de segurança operacional. Este projeto é uma **camada técnica**, não uma metodologia.
 
 ---
 
@@ -690,6 +731,20 @@ A cada execução depois disso, `anonymous-browser` pergunta se você quer um e-
 ./install.sh
 ```
 
+### Atualizando Camoufox
+
+A versão do Camoufox é **pinada** em [`requirements.txt`](requirements.txt) (`>=0.4.11,<0.5.0`) para evitar breaking changes silenciosos (Camoufox `0.4.11` já quebrou o projeto uma vez — veja [`FIXES.md`](FIXES.md)).
+
+Para puxar atualizações patch dentro do range (ex: `0.4.11 → 0.4.13`):
+
+```bash
+source ~/.camoufox-venv/bin/activate
+pip install -U -r requirements.txt
+python -m camoufox fetch    # baixa o binário Firefox+patches mais recente
+```
+
+Para fazer upgrade de **minor version** (ex: `0.4 → 0.5`), edite `requirements.txt` (`>=0.5.0,<0.6.0`), rode `./install.sh` de novo, e teste com `./anonymous.sh https://check.torproject.org`. Se quebrar, reverta o range — não há rollback automático.
+
 ### Plataformas suportadas
 
 | Família | Distros confirmadas | Package manager |
@@ -803,6 +858,8 @@ MAIL=1 ANON_MAIL_PROXY=none ./anonymous.sh https://site.com/signup
 | `MAIL` | `1` | Gera um e-mail descartável (mail.tm) e mostra os recebidos em tempo real no mesmo terminal. Usa o mesmo `PROXY` e o mesmo perfil do navegador. Com `KEEP`, o endereço persiste entre sessões; sem `KEEP`, a conta é apagada no exit. |
 | `ANON_MAIL_POLL` | segundos (default `5`, mínimo `2`) | Intervalo de checagem da caixa de entrada. |
 | `ANON_MAIL_PROXY` | `tor` \| `none` \| `socks5://...` \| `http(s)://...` | Override de proxy **só pro e-mail** (o navegador segue no `PROXY`). Use `none` se o exit Tor estiver bloqueado pelo Cloudflare do mail.tm. |
+| `FIRSTPARTY_ISOLATE` | `1` | Ativa First-Party Isolation no Firefox: cookies/cache/storage isolados por origem top-level (estilo Tor Browser). **Trade-off:** quebra "Login com Google" cross-site. Default off. |
+| `STRICT_CIRCUIT` | `1` | Aborta a sessão se `new-tor-circuit.sh` não confirmar `NEWNYM` (em vez de seguir com circuito reutilizado). Default `0` (só emite warning). Use quando reutilizar circuito é inaceitável. |
 
 > **E-mail descartável (`MAIL=1`):** o endereço é criado no [mail.tm](https://mail.tm) — serviço **gratuito, sem API key e sem cadastro** (rate limit 8 req/s). _Inbox by mail.tm._ Como qualquer serviço de e-mail temporário, **não use para nada sensível**: as mensagens são públicas pra quem souber o endereço. Conta efêmera é deletada ao fechar o navegador / Ctrl+C.
 
@@ -901,6 +958,31 @@ anonymous-browser/
 4. **Mullvad Browser e Tor Browser homogeneízam, não personificam.** Útil pra ler anonimamente, inútil pra cadastrar como "outro alguém".
 5. **WebRTC permanece bloqueado pelo Camoufox** (`block_webrtc=True`) mesmo com `PROXY=none`, mas DNS lookups vão pelo seu resolver local — sua máquina aparece como Linux normal para o ISP nesse modo.
 6. **Camoufox não emula iPhone/Android.** Documentação oficial só aceita `os="windows"|"macos"|"linux"`. Pra mobile coerente, alternativas pagas: GoLogin, Multilogin, AdsPower.
+
+---
+
+## FAQ
+
+**Funciona em sites com Cloudflare?**
+Depende do nível. Cloudflare grátis (challenge JS) geralmente passa. Cloudflare Bot Management Enterprise tier (`__cf_bm`, Turnstile com risk scoring) detecta. Veja a seção "O que ESTE projeto NÃO protege contra" no topo do README.
+
+**Por que Camoufox e não Chrome/Chromium?**
+Camoufox é um fork patchado de Firefox que reescreve fingerprint em C++ (canvas, WebGL, Audio, fonts) — algo que extensão pura não consegue. Patchright (equivalente Chromium) existe e está planejado como engine alternativa opt-in para `0.4.0+`.
+
+**Funciona offline?**
+Não. Precisa do Tor (ou de uma VPN com `PROXY=socks5://...`).
+
+**Posso usar minha própria VPN ao invés de Tor?**
+Sim. `PROXY=socks5://host:port` ou `PROXY=http://host:port`. Trade-off: você confia no operador da VPN; com Tor a confiança é distribuída por 3 nós.
+
+**Por que Linux + macOS apenas?**
+Bash. Windows é suportado via WSL2 (mesma codepath de Linux). Suporte nativo a Windows está fora do escopo.
+
+**Os e-mails do `MAIL=1` são privados?**
+**Não.** Operadores do `mail.tm` podem ler tudo. Use apenas para OTPs/links de sites que você não confiaria com dados sensíveis. Self-host SMTP está planejado para 0.2.2.
+
+**O `KEEP=` quebra o anonimato?**
+Sim — proposital. `KEEP=nome` é "identidade persistente": cookies, OS spoofado e (em breve) endereço de e-mail ficam estáveis entre sessões. Use quando o objetivo é "ser sempre o mesmo usuário fake no site X", não "ser anônimo".
 
 ---
 
